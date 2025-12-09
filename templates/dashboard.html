@@ -16,8 +16,15 @@
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card h-100">
             <div class="card-body">
-                <div class="stat-label mb-2">Total Volume</div>
-                <div class="stat-value">${{ total_volume|floatformat:0|intcomma }}</div>
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Total Volume</p>
+                        <p class="fw-normal mb-0 fs-6 stat-value" style="font-size: 1.5rem !important;">${{ total_volume|floatformat:0|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-tpg fa-duotone fa-solid fa-sack-dollar"></i>
+                    </div>
+                </div>
                 <div class="text-muted mt-2">
                     <small>{{ current_year }} YTD</small>
                 </div>
@@ -27,8 +34,15 @@
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card success h-100">
             <div class="card-body">
-                <div class="stat-label mb-2">Closed Sales</div>
-                <div class="stat-value">{{ closed_properties|intcomma }}</div>
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Closed Sales</p>
+                        <p class="fw-normal mb-0 fs-6 stat-value" style="font-size: 1.5rem !important;">{{ closed_properties|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-green fa-duotone fa-solid fa-badge-check"></i>
+                    </div>
+                </div>
                 <div class="text-muted mt-2">
                     <small>{{ current_year }} transactions</small>
                 </div>
@@ -38,8 +52,15 @@
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card h-100">
             <div class="card-body">
-                <div class="stat-label mb-2">Active Agents</div>
-                <div class="stat-value">{{ total_agents|intcomma }}</div>
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Active Agents</p>
+                        <p class="fw-normal mb-0 fs-6 stat-value" style="font-size: 1.5rem !important;">{{ total_agents|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-tpg fa-duotone fa-solid fa-users"></i>
+                    </div>
+                </div>
                 <div class="text-muted mt-2">
                     <small>In database</small>
                 </div>
@@ -49,8 +70,15 @@
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card warning h-100">
             <div class="card-body">
-                <div class="stat-label mb-2">Total Properties</div>
-                <div class="stat-value">{{ total_properties|intcomma }}</div>
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Total Properties</p>
+                        <p class="fw-normal mb-0 fs-6 stat-value" style="font-size: 1.5rem !important;">{{ total_properties|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-purple fa-duotone fa-solid fa-buildings"></i>
+                    </div>
+                </div>
                 <div class="text-muted mt-2">
                     <small>{{ current_year }} listings</small>
                 </div>
@@ -64,9 +92,9 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center py-3">
-                <span><i class="bi bi-trophy me-2"></i>Top Performing Agents</span>
+                <span><i class="fa-duotone fa-solid fa-trophy me-2 text-tpg"></i>Top Performing Agents</span>
                 <a href="{% url 'sales:leaderboard' %}" class="btn btn-sm btn-outline-primary">
-                    View All <i class="bi bi-arrow-right ms-1"></i>
+                    View All <i class="fa-solid fa-arrow-right ms-1"></i>
                 </a>
             </div>
             <div class="card-body p-0">
@@ -115,7 +143,7 @@
                             {% empty %}
                             <tr>
                                 <td colspan="5" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    <i class="fa-duotone fa-solid fa-inbox fs-1 d-block mb-2"></i>
                                     No agent data available. Run a sync to populate.
                                 </td>
                             </tr>
@@ -132,7 +160,7 @@
         <!-- AOR Quick Links -->
         <div class="card mb-4">
             <div class="card-header py-3">
-                <i class="bi bi-geo-alt me-2"></i>Browse by AOR
+                <i class="fa-duotone fa-solid fa-location-dot me-2 text-tpg"></i>Browse by AOR
             </div>
             <div class="card-body">
                 <div class="d-flex flex-wrap gap-2">
@@ -152,13 +180,13 @@
         <!-- Sync Status -->
         <div class="card">
             <div class="card-header py-3">
-                <i class="bi bi-cloud-download me-2"></i>Sync Status
+                <i class="fa-duotone fa-solid fa-cloud-arrow-down me-2 text-tpg"></i>Sync Status
             </div>
             <div class="card-body">
                 {% if last_sync %}
                 <div class="d-flex align-items-center mb-3">
                     <div class="rounded-circle bg-success bg-opacity-25 p-2 me-3">
-                        <i class="bi bi-check-lg text-success"></i>
+                        <i class="fa-solid fa-check text-success"></i>
                     </div>
                     <div>
                         <div class="fw-medium">Last Sync Successful</div>
@@ -181,7 +209,7 @@
                 </div>
                 {% else %}
                 <div class="text-center py-3 text-muted">
-                    <i class="bi bi-cloud-slash fs-1 d-block mb-2"></i>
+                    <i class="fa-duotone fa-solid fa-cloud-slash fs-1 d-block mb-2"></i>
                     <p class="mb-0">No sync history available</p>
                     <small>Run <code>sync_mls_data</code> command</small>
                 </div>
@@ -191,4 +219,3 @@
     </div>
 </div>
 {% endblock %}
-

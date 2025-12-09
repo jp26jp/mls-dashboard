@@ -12,7 +12,7 @@
                 <li class="breadcrumb-item active">Leaderboard</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1"><i class="bi bi-trophy me-2"></i>Agent Leaderboard</h1>
+        <h1 class="h3 mb-1"><i class="fa-duotone fa-solid fa-trophy me-2 text-tpg"></i>Agent Leaderboard</h1>
         <p class="text-muted mb-0">Top performing agents ranked by sales volume</p>
     </div>
 </div>
@@ -22,10 +22,14 @@
     <div class="card-body">
         <form method="get" class="row g-3 align-items-end">
             <div class="col-md-3">
+                <label class="form-label">Agent Name</label>
+                {{ filterset.form.agent_name }}
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">Year</label>
                 {{ filterset.form.year }}
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Association of Realtors</label>
                 {{ filterset.form.aor }}
             </div>
@@ -37,9 +41,9 @@
                 <label class="form-label">Min Transactions</label>
                 {{ filterset.form.min_transactions }}
             </div>
-            <div class="col-md-2">
+            <div class="col-md-1">
                 <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-funnel me-1"></i> Filter
+                    <i class="fa-solid fa-filter"></i>
                 </button>
             </div>
         </form>
@@ -50,25 +54,46 @@
 <div class="row g-4 mb-4">
     <div class="col-md-4">
         <div class="card stat-card h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">Agents Shown</div>
-                <div class="stat-value">{{ total_agents_shown|intcomma }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Agents Shown</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.5rem !important;">{{ total_agents_shown|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-tpg fa-duotone fa-solid fa-users"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card stat-card success h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">Total Volume</div>
-                <div class="stat-value">${{ total_volume_shown|floatformat:0|intcomma }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Total Volume</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.5rem !important;">${{ total_volume_shown|floatformat:0|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-green fa-duotone fa-solid fa-sack-dollar"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card stat-card warning h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">Total Transactions</div>
-                <div class="stat-value">{{ total_transactions_shown|intcomma }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Total Transactions</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.5rem !important;">{{ total_transactions_shown|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-purple fa-duotone fa-solid fa-handshake"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -140,7 +165,7 @@
                     {% empty %}
                     <tr>
                         <td colspan="8" class="text-center py-5 text-muted">
-                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            <i class="fa-duotone fa-solid fa-inbox fs-1 d-block mb-2"></i>
                             <p class="mb-0">No agents found matching your criteria</p>
                         </td>
                     </tr>
@@ -158,7 +183,7 @@
         {% if page_obj.has_previous %}
         <li class="page-item">
             <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
-                <i class="bi bi-chevron-left"></i>
+                <i class="fa-solid fa-chevron-left"></i>
             </a>
         </li>
         {% endif %}
@@ -176,7 +201,7 @@
         {% if page_obj.has_next %}
         <li class="page-item">
             <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
-                <i class="bi bi-chevron-right"></i>
+                <i class="fa-solid fa-chevron-right"></i>
             </a>
         </li>
         {% endif %}
@@ -184,4 +209,3 @@
 </nav>
 {% endif %}
 {% endblock %}
-

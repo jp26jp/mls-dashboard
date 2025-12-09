@@ -607,24 +607,38 @@ def sync_properties(
 
         logger.info(f"Fetching closed properties for {year}...")
 
-        # Use the paginated method to get all closed properties with retry
-        try:
-            response = client.property.get_all_properties_paginated(
-                filter_query=filter_query,
-                page_size=200,
-            )
-        except RateLimitError:
-            logger.warning("Rate limit hit, waiting 30 seconds...")
-            time.sleep(30)
-            response = client.property.get_all_properties_paginated(
-                filter_query=filter_query,
-                page_size=200,
-            )
-        properties_data = response.get("value", [])
+        # Process properties in pages to avoid memory issues
+        page_num = 0
+        while True:
+            page_num += 1
 
-        logger.info(f"Found {len(properties_data)} closed properties for {year}")
+            try:
+                # Add delay between pages to avoid rate limiting
+                if page_num > 1:
+                    time.sleep(1)
 
-        for property_data in properties_data:
+                response = client.property.get_properties(
+                    filter_query=filter_query,
+                    top=200,
+                    skip=(page_num - 1) * 200 if page_num > 1 else None,
+                )
+            except RateLimitError:
+                logger.warning("Rate limit hit, waiting 30 seconds...")
+                time.sleep(30)
+                response = client.property.get_properties(
+                    filter_query=filter_query,
+                    top=200,
+                    skip=(page_num - 1) * 200 if page_num > 1 else None,
+                )
+
+            properties_data = response.get("value", [])
+
+            if not properties_data:
+                break
+
+            logger.info(f"Processing page {page_num} ({len(properties_data)} properties)")
+
+            for property_data in properties_data:
                 try:
                     records_processed += 1
 
@@ -656,6 +670,10 @@ def sync_properties(
                 except Exception as e:
                     logger.error(f"Error processing property: {e}")
                     continue
+
+            # Check if there are more pages (if we got fewer than 200, we're done)
+            if len(properties_data) < 200:
+                break
 
         sync_log.records_processed = records_processed
         sync_log.records_created = records_created

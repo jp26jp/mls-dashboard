@@ -12,7 +12,7 @@
                 <li class="breadcrumb-item active">Properties</li>
             </ol>
         </nav>
-        <h1 class="h3 mb-1"><i class="bi bi-building me-2"></i>Property Search</h1>
+        <h1 class="h3 mb-1"><i class="fa-duotone fa-solid fa-buildings me-2 text-tpg"></i>Property Search</h1>
         <p class="text-muted mb-0">Search and browse MLS transactions</p>
     </div>
 </div>
@@ -64,12 +64,12 @@
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-search me-1"></i> Search
+                        <i class="fa-solid fa-magnifying-glass me-1"></i> Search
                     </button>
                 </div>
                 <div class="col-md-3">
                     <a href="{% url 'sales:property_list' %}" class="btn btn-outline-secondary w-100">
-                        <i class="bi bi-x-lg me-1"></i> Clear
+                        <i class="fa-solid fa-xmark me-1"></i> Clear
                     </a>
                 </div>
             </div>
@@ -83,11 +83,11 @@
         <div class="card stat-card h-100">
             <div class="card-body d-flex align-items-center">
                 <div class="me-3">
-                    <i class="bi bi-houses fs-1 text-primary opacity-50"></i>
+                    <i class="fa-duotone fa-solid fa-house fs-1 text-tpg opacity-50"></i>
                 </div>
                 <div>
-                    <div class="stat-label mb-1">Properties Found</div>
-                    <div class="stat-value" style="font-size: 1.8rem;">{{ total_properties|intcomma }}</div>
+                    <p class="text-uppercase text-body-secondary mb-1 f-11 fw-normal">Properties Found</p>
+                    <p class="fw-normal mb-0 stat-value" style="font-size: 1.8rem !important;">{{ total_properties|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -96,11 +96,11 @@
         <div class="card stat-card success h-100">
             <div class="card-body d-flex align-items-center">
                 <div class="me-3">
-                    <i class="bi bi-currency-dollar fs-1 text-success opacity-50"></i>
+                    <i class="fa-duotone fa-solid fa-dollar-sign fs-1 text-green opacity-50"></i>
                 </div>
                 <div>
-                    <div class="stat-label mb-1">Total Volume</div>
-                    <div class="stat-value" style="font-size: 1.8rem;">${{ total_volume|floatformat:0|intcomma }}</div>
+                    <p class="text-uppercase text-body-secondary mb-1 f-11 fw-normal">Total Volume</p>
+                    <p class="fw-normal mb-0 stat-value" style="font-size: 1.8rem !important;">${{ total_volume|floatformat:0|intcomma }}</p>
                 </div>
             </div>
         </div>
@@ -174,7 +174,7 @@
                     {% empty %}
                     <tr>
                         <td colspan="7" class="text-center py-5 text-muted">
-                            <i class="bi bi-house-slash fs-1 d-block mb-2"></i>
+                            <i class="fa-duotone fa-solid fa-house-circle-xmark fs-1 d-block mb-2"></i>
                             <p class="mb-0">No properties found matching your criteria</p>
                         </td>
                     </tr>
@@ -192,7 +192,7 @@
         {% if page_obj.has_previous %}
         <li class="page-item">
             <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
-                <i class="bi bi-chevron-left"></i>
+                <i class="fa-solid fa-chevron-left"></i>
             </a>
         </li>
         {% endif %}
@@ -210,7 +210,7 @@
         {% if page_obj.has_next %}
         <li class="page-item">
             <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
-                <i class="bi bi-chevron-right"></i>
+                <i class="fa-solid fa-chevron-right"></i>
             </a>
         </li>
         {% endif %}
@@ -218,4 +218,3 @@
 </nav>
 {% endif %}
 {% endblock %}
-

@@ -15,9 +15,16 @@ from .models import AgentStats, Member, Property
 class AgentStatsFilter(django_filters.FilterSet):
     """Filter for agent statistics/leaderboard.
 
-    Allows filtering by AOR, year, and minimum volume.
+    Allows filtering by AOR, year, minimum volume, and agent name.
     """
 
+    agent_name = django_filters.CharFilter(
+        method="filter_agent_name",
+        label="Agent Name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Search by agent name..."}
+        ),
+    )
     aor = django_filters.CharFilter(
         field_name="aor",
         lookup_expr="iexact",
@@ -46,7 +53,7 @@ class AgentStatsFilter(django_filters.FilterSet):
         """Meta options for AgentStatsFilter."""
 
         model = AgentStats
-        fields = ["aor", "year"]
+        fields = ["agent_name", "aor", "year"]
 
     def __init__(self, *args, **kwargs) -> None:
         """Initialize filter with dynamic choices.
@@ -82,6 +89,29 @@ class AgentStatsFilter(django_filters.FilterSet):
         self.filters["year"].extra["widget"] = forms.Select(
             choices=year_choices,
             attrs={"class": "form-select"},
+        )
+
+    def filter_agent_name(
+        self, queryset: QuerySet, name: str, value: str
+    ) -> QuerySet:
+        """Filter agent stats by agent name.
+
+        Args:
+            queryset: The queryset to filter.
+            name: The filter field name.
+            value: The search value.
+
+        Returns:
+            Filtered queryset.
+        """
+        if not value:
+            return queryset
+        from django.db.models import Q
+
+        return queryset.filter(
+            Q(member__member_full_name__icontains=value)
+            | Q(member__member_first_name__icontains=value)
+            | Q(member__member_last_name__icontains=value)
         )
 
 
@@ -153,10 +183,12 @@ class MemberFilter(django_filters.FilterSet):
         """
         if not value:
             return queryset
+        from django.db.models import Q
+
         return queryset.filter(
-            models.Q(member_full_name__icontains=value)
-            | models.Q(member_first_name__icontains=value)
-            | models.Q(member_last_name__icontains=value)
+            Q(member_full_name__icontains=value)
+            | Q(member_first_name__icontains=value)
+            | Q(member_last_name__icontains=value)
         )
 
 
