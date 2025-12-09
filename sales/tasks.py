@@ -5,6 +5,7 @@ from the WFRMLS API using incremental updates based on modification timestamps.
 """
 
 import logging
+import time
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional
@@ -15,6 +16,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from wfrmls import WFRMLSClient
+from wfrmls.exceptions import RateLimitError
 
 from .models import AgentStats, Member, Property, SyncLog
 
@@ -176,8 +178,19 @@ def sync_members(full_sync: bool = False) -> SyncLog:
             # Extract the endpoint from the next link
             # The nextLink is a full URL, we need just the path + query
             if "?" in next_link:
-                endpoint = next_link.split("/odata/")[1] if "/odata/" in next_link else next_link
-                response = client.member.get(endpoint)
+                endpoint = (
+                    next_link.split("/odata/")[1]
+                    if "/odata/" in next_link
+                    else next_link
+                )
+                # Add delay to avoid rate limiting
+                time.sleep(1)
+                try:
+                    response = client.member.get(endpoint)
+                except RateLimitError:
+                    logger.warning("Rate limit hit, waiting 30 seconds...")
+                    time.sleep(30)
+                    response = client.member.get(endpoint)
                 members_data = response.get("value", [])
             else:
                 break
@@ -594,11 +607,19 @@ def sync_properties(
 
         logger.info(f"Fetching closed properties for {year}...")
 
-        # Use the paginated method to get all closed properties
-        response = client.property.get_all_properties_paginated(
-            filter_query=filter_query,
-            page_size=200,
-        )
+        # Use the paginated method to get all closed properties with retry
+        try:
+            response = client.property.get_all_properties_paginated(
+                filter_query=filter_query,
+                page_size=200,
+            )
+        except RateLimitError:
+            logger.warning("Rate limit hit, waiting 30 seconds...")
+            time.sleep(30)
+            response = client.property.get_all_properties_paginated(
+                filter_query=filter_query,
+                page_size=200,
+            )
         properties_data = response.get("value", [])
 
         logger.info(f"Found {len(properties_data)} closed properties for {year}")
