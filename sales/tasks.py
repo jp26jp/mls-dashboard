@@ -712,16 +712,24 @@ def calculate_agent_stats(year: Optional[int] = None) -> int:
 
     logger.info(f"Calculating agent stats for {year}...")
 
-    # Get all closed properties for the year (all property types)
-    closed_properties = Property.objects.filter(
-        standard_status="Closed",
-        close_date__year=year,
-    )
-
     # Calculate volumes for both listing and buying sides per AOR
     agent_volumes: dict[tuple[int, str], dict[str, Any]] = {}
 
+    # Use iterator() with chunk_size to avoid loading all properties into memory
+    closed_properties = Property.objects.filter(
+        standard_status="Closed",
+        close_date__year=year,
+    ).only(
+        "close_price",
+        "list_agent_key_numeric",
+        "list_agent_aor",
+        "buyer_agent_key_numeric",
+        "buyer_agent_aor",
+    ).iterator(chunk_size=1000)
+
+    prop_count = 0
     for prop in closed_properties:
+        prop_count += 1
         close_price = Decimal(str(prop.close_price)) if prop.close_price else Decimal("0")
 
         # Process listing agent
@@ -751,6 +759,9 @@ def calculate_agent_stats(year: Optional[int] = None) -> int:
                 }
             agent_volumes[key]["buyer_volume"] += close_price
             agent_volumes[key]["buyer_count"] += 1
+
+        if prop_count % 5000 == 0:
+            logger.info(f"Processed {prop_count} properties...")
 
     # Create/update AgentStats records
     stats_updated = 0
