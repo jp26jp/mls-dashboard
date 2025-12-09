@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ agent.member_full_name }} - MLS Sales Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'sales:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'sales:agent_list' %}" class="text-decoration-none">Agents</a></li>
+                <li class="breadcrumb-item active">{{ agent.member_full_name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Agent Header -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="agent-avatar" style="width: 80px; height: 80px; font-size: 1.8rem;">
+                    {{ agent.member_first_name|slice:":1" }}{{ agent.member_last_name|slice:":1" }}
+                </div>
+            </div>
+            <div class="col">
+                <h1 class="h3 mb-1">{{ agent.member_full_name }}</h1>
+                <p class="text-muted mb-2">{{ agent.office_name|default:"Independent Agent" }}</p>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if agent.member_aor %}
+                    <span class="badge bg-primary bg-opacity-25 text-primary-emphasis">
+                        <i class="bi bi-geo-alt me-1"></i>{{ agent.member_aor }}
+                    </span>
+                    {% endif %}
+                    {% if agent.member_status %}
+                    <span class="badge {% if agent.member_status == 'Active' %}bg-success{% else %}bg-secondary{% endif %} bg-opacity-25 {% if agent.member_status == 'Active' %}text-success{% else %}text-body{% endif %}">
+                        {{ agent.member_status }}
+                    </span>
+                    {% endif %}
+                    {% if agent.member_type %}
+                    <span class="badge bg-info bg-opacity-25 text-info-emphasis">
+                        {{ agent.member_type }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-auto">
+                {% if agent.member_preferred_phone %}
+                <a href="tel:{{ agent.member_preferred_phone }}" class="btn btn-primary">
+                    <i class="bi bi-telephone me-1"></i> {{ agent.member_preferred_phone }}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">Year Volume</div>
+                <div class="stat-value">${{ year_volume|floatformat:0|intcomma }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card success h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">Transactions</div>
+                <div class="stat-value">{{ year_transaction_count }}</div>
+            </div>
+        </div>
+    </div>
+    {% if current_stats %}
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">Overall Rank</div>
+                <div class="stat-value">#{{ current_stats.rank_overall|default:"-" }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card warning h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">AOR Rank</div>
+                <div class="stat-value">#{{ current_stats.rank_in_aor|default:"-" }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Contact Info & History -->
+<div class="row g-4 mb-4">
+    <!-- Contact Info -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header py-3">
+                <i class="bi bi-person-vcard me-2"></i>Contact Information
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    {% if agent.member_preferred_phone %}
+                    <tr>
+                        <td class="text-muted" style="width: 40%;"><i class="bi bi-telephone me-2"></i>Phone</td>
+                        <td><a href="tel:{{ agent.member_preferred_phone }}" class="text-decoration-none">{{ agent.member_preferred_phone }}</a></td>
+                    </tr>
+                    {% endif %}
+                    {% if agent.member_mobile_phone and agent.member_mobile_phone != agent.member_preferred_phone %}
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-phone me-2"></i>Mobile</td>
+                        <td><a href="tel:{{ agent.member_mobile_phone }}" class="text-decoration-none">{{ agent.member_mobile_phone }}</a></td>
+                    </tr>
+                    {% endif %}
+                    {% if agent.member_office_phone %}
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-building me-2"></i>Office</td>
+                        <td><a href="tel:{{ agent.member_office_phone }}" class="text-decoration-none">{{ agent.member_office_phone }}</a></td>
+                    </tr>
+                    {% endif %}
+                    {% if agent.member_mls_id %}
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-hash me-2"></i>MLS ID</td>
+                        <td><code>{{ agent.member_mls_id }}</code></td>
+                    </tr>
+                    {% endif %}
+                    {% if agent.member_state_license %}
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-card-text me-2"></i>License</td>
+                        <td>{{ agent.member_state_license }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if agent.member_designation %}
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-award me-2"></i>Designations</td>
+                        <td>{{ agent.member_designation }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance History -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header py-3">
+                <i class="bi bi-graph-up me-2"></i>Performance History
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>AOR</th>
+                                <th class="text-end">Volume</th>
+                                <th class="text-end">Transactions</th>
+                                <th class="text-end">Rank</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in stats %}
+                            <tr>
+                                <td><strong>{{ stat.year }}</strong></td>
+                                <td>{{ stat.aor|default:"-" }}</td>
+                                <td class="text-end volume-display">${{ stat.total_volume|floatformat:0|intcomma }}</td>
+                                <td class="text-end">{{ stat.transaction_count }}</td>
+                                <td class="text-end">
+                                    <span class="rank-badge rank-default" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                        {{ stat.rank_in_aor|default:stat.rank_overall|default:"-" }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    No performance history available
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Transactions -->
+<div class="row g-4">
+    <!-- Listing Side -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-house-add me-2"></i>Recent Listings Sold
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th class="text-end">Price</th>
+                                <th class="text-end">Closed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prop in listing_transactions %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'sales:property_detail' prop.listing_key_numeric %}" class="text-decoration-none">
+                                        {{ prop.unparsed_address|default:prop.street_name|truncatechars:35 }}
+                                    </a>
+                                    <div class="text-muted small">{{ prop.city }}</div>
+                                </td>
+                                <td class="text-end volume-display">${{ prop.close_price|floatformat:0|intcomma }}</td>
+                                <td class="text-end text-muted small">{{ prop.close_date|date:"M j, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center py-4 text-muted">
+                                    No listing transactions
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buyer Side -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-house-check me-2"></i>Recent Buyer Side Transactions
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th class="text-end">Price</th>
+                                <th class="text-end">Closed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prop in buyer_transactions %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'sales:property_detail' prop.listing_key_numeric %}" class="text-decoration-none">
+                                        {{ prop.unparsed_address|default:prop.street_name|truncatechars:35 }}
+                                    </a>
+                                    <div class="text-muted small">{{ prop.city }}</div>
+                                </td>
+                                <td class="text-end volume-display">${{ prop.close_price|floatformat:0|intcomma }}</td>
+                                <td class="text-end text-muted small">{{ prop.close_date|date:"M j, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center py-4 text-muted">
+                                    No buyer side transactions
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

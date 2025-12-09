@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Leaderboard - MLS Sales Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'sales:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+                <li class="breadcrumb-item active">Leaderboard</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1"><i class="bi bi-trophy me-2"></i>Agent Leaderboard</h1>
+        <p class="text-muted mb-0">Top performing agents ranked by sales volume</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Year</label>
+                {{ filterset.form.year }}
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Association of Realtors</label>
+                {{ filterset.form.aor }}
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Min Volume ($)</label>
+                {{ filterset.form.min_volume }}
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Min Transactions</label>
+                {{ filterset.form.min_transactions }}
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel me-1"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">Agents Shown</div>
+                <div class="stat-value">{{ total_agents_shown|intcomma }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card success h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">Total Volume</div>
+                <div class="stat-value">${{ total_volume_shown|floatformat:0|intcomma }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card warning h-100">
+            <div class="card-body text-center">
+                <div class="stat-label mb-2">Total Transactions</div>
+                <div class="stat-value">{{ total_transactions_shown|intcomma }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaderboard Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Rank</th>
+                        <th>Agent</th>
+                        <th>AOR</th>
+                        <th class="text-end">Total Volume</th>
+                        <th class="text-end">Listings</th>
+                        <th class="text-end">Buyer Side</th>
+                        <th class="text-end">Transactions</th>
+                        <th class="text-end">Avg Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in agent_stats %}
+                    <tr>
+                        <td>
+                            <span class="rank-badge {% if stat.rank_in_aor == 1 %}rank-1{% elif stat.rank_in_aor == 2 %}rank-2{% elif stat.rank_in_aor == 3 %}rank-3{% else %}rank-default{% endif %}">
+                                {{ stat.rank_in_aor|default:stat.rank_overall }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="agent-avatar me-3">
+                                    {{ stat.member.member_first_name|slice:":1" }}{{ stat.member.member_last_name|slice:":1" }}
+                                </div>
+                                <div>
+                                    <a href="{% url 'sales:agent_detail' stat.member.member_key_numeric %}" class="text-decoration-none fw-semibold">
+                                        {{ stat.member.member_full_name }}
+                                    </a>
+                                    <div class="text-muted small">{{ stat.member.office_name|default:"-"|truncatechars:35 }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary bg-opacity-25 text-body">{{ stat.aor|default:"-" }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="volume-display fw-bold">${{ stat.total_volume|floatformat:0|intcomma }}</span>
+                        </td>
+                        <td class="text-end">
+                            <div class="volume-display small">${{ stat.listing_volume|floatformat:0|intcomma }}</div>
+                            <small class="text-muted">{{ stat.listing_count }} deals</small>
+                        </td>
+                        <td class="text-end">
+                            <div class="volume-display small">${{ stat.buyer_volume|floatformat:0|intcomma }}</div>
+                            <small class="text-muted">{{ stat.buyer_count }} deals</small>
+                        </td>
+                        <td class="text-end">
+                            <span class="fw-medium">{{ stat.transaction_count }}</span>
+                        </td>
+                        <td class="text-end">
+                            {% if stat.average_price %}
+                            <span class="text-muted">${{ stat.average_price|floatformat:0|intcomma }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            <p class="mb-0">No agents found matching your criteria</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<nav class="mt-4" aria-label="Leaderboard pagination">
+    <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Dashboard - MLS Sales Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h3 mb-1">Sales Dashboard</h1>
+        <p class="text-muted mb-0">WFRMLS Performance Overview for {{ current_year }}</p>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-4 mb-5">
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label mb-2">Total Volume</div>
+                <div class="stat-value">${{ total_volume|floatformat:0|intcomma }}</div>
+                <div class="text-muted mt-2">
+                    <small>{{ current_year }} YTD</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card success h-100">
+            <div class="card-body">
+                <div class="stat-label mb-2">Closed Sales</div>
+                <div class="stat-value">{{ closed_properties|intcomma }}</div>
+                <div class="text-muted mt-2">
+                    <small>{{ current_year }} transactions</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label mb-2">Active Agents</div>
+                <div class="stat-value">{{ total_agents|intcomma }}</div>
+                <div class="text-muted mt-2">
+                    <small>In database</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card stat-card warning h-100">
+            <div class="card-body">
+                <div class="stat-label mb-2">Total Properties</div>
+                <div class="stat-value">{{ total_properties|intcomma }}</div>
+                <div class="text-muted mt-2">
+                    <small>{{ current_year }} listings</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Top Agents -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center py-3">
+                <span><i class="bi bi-trophy me-2"></i>Top Performing Agents</span>
+                <a href="{% url 'sales:leaderboard' %}" class="btn btn-sm btn-outline-primary">
+                    View All <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Agent</th>
+                                <th>AOR</th>
+                                <th class="text-end">Volume</th>
+                                <th class="text-end">Transactions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in top_agents %}
+                            <tr>
+                                <td>
+                                    <span class="rank-badge {% if stat.rank_overall == 1 %}rank-1{% elif stat.rank_overall == 2 %}rank-2{% elif stat.rank_overall == 3 %}rank-3{% else %}rank-default{% endif %}">
+                                        {{ stat.rank_overall }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="agent-avatar me-3">
+                                            {{ stat.member.member_first_name|slice:":1" }}{{ stat.member.member_last_name|slice:":1" }}
+                                        </div>
+                                        <div>
+                                            <a href="{% url 'sales:agent_detail' stat.member.member_key_numeric %}" class="text-decoration-none fw-semibold">
+                                                {{ stat.member.member_full_name }}
+                                            </a>
+                                            <div class="text-muted small">{{ stat.member.office_name|default:"-"|truncatechars:30 }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary bg-opacity-25 text-body">{{ stat.aor|default:"-" }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="volume-display">${{ stat.total_volume|floatformat:0|intcomma }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-medium">{{ stat.transaction_count }}</span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    No agent data available. Run a sync to populate.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links & Sync Info -->
+    <div class="col-lg-4">
+        <!-- AOR Quick Links -->
+        <div class="card mb-4">
+            <div class="card-header py-3">
+                <i class="bi bi-geo-alt me-2"></i>Browse by AOR
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for aor in aors %}
+                    {% if aor %}
+                    <a href="{% url 'sales:leaderboard' %}?aor={{ aor|urlencode }}" class="btn btn-sm btn-outline-primary">
+                        {{ aor }}
+                    </a>
+                    {% endif %}
+                    {% empty %}
+                    <p class="text-muted mb-0 small">No AORs available</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync Status -->
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-cloud-download me-2"></i>Sync Status
+            </div>
+            <div class="card-body">
+                {% if last_sync %}
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-circle bg-success bg-opacity-25 p-2 me-3">
+                        <i class="bi bi-check-lg text-success"></i>
+                    </div>
+                    <div>
+                        <div class="fw-medium">Last Sync Successful</div>
+                        <small class="text-muted">{{ last_sync.completed_at|timesince }} ago</small>
+                    </div>
+                </div>
+                <div class="row g-3 text-center">
+                    <div class="col-4">
+                        <div class="fw-bold">{{ last_sync.records_processed|intcomma }}</div>
+                        <small class="text-muted">Processed</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fw-bold text-success">{{ last_sync.records_created|intcomma }}</div>
+                        <small class="text-muted">Created</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fw-bold text-info">{{ last_sync.records_updated|intcomma }}</div>
+                        <small class="text-muted">Updated</small>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-3 text-muted">
+                    <i class="bi bi-cloud-slash fs-1 d-block mb-2"></i>
+                    <p class="mb-0">No sync history available</p>
+                    <small>Run <code>sync_mls_data</code> command</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

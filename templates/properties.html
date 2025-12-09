@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Properties - MLS Sales Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'sales:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+                <li class="breadcrumb-item active">Properties</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1"><i class="bi bi-building me-2"></i>Property Search</h1>
+        <p class="text-muted mb-0">Search and browse MLS transactions</p>
+    </div>
+</div>
+
+<!-- Search & Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Address</label>
+                    {{ filterset.form.address }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">City</label>
+                    {{ filterset.form.city }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    {{ filterset.form.status }}
+                </div>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">Property Type</label>
+                    {{ filterset.form.property_type }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Min Price ($)</label>
+                    {{ filterset.form.min_price }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Max Price ($)</label>
+                    {{ filterset.form.max_price }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Agent Name</label>
+                    {{ filterset.form.agent }}
+                </div>
+            </div>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Closed After</label>
+                    {{ filterset.form.close_date_after }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Closed Before</label>
+                    {{ filterset.form.close_date_before }}
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-1"></i> Search
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <a href="{% url 'sales:property_list' %}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-x-lg me-1"></i> Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Summary -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card stat-card h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="me-3">
+                    <i class="bi bi-houses fs-1 text-primary opacity-50"></i>
+                </div>
+                <div>
+                    <div class="stat-label mb-1">Properties Found</div>
+                    <div class="stat-value" style="font-size: 1.8rem;">{{ total_properties|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card stat-card success h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="me-3">
+                    <i class="bi bi-currency-dollar fs-1 text-success opacity-50"></i>
+                </div>
+                <div>
+                    <div class="stat-label mb-1">Total Volume</div>
+                    <div class="stat-value" style="font-size: 1.8rem;">${{ total_volume|floatformat:0|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Properties Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Address</th>
+                        <th>City</th>
+                        <th>Status</th>
+                        <th class="text-end">Price</th>
+                        <th>List Agent</th>
+                        <th>Buyer Agent</th>
+                        <th class="text-end">Close Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for property in properties %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'sales:property_detail' property.listing_key_numeric %}" class="text-decoration-none fw-medium">
+                                {{ property.unparsed_address|default:property.street_name|truncatechars:30 }}
+                            </a>
+                            {% if property.bedrooms_total or property.bathrooms_total_integer %}
+                            <div class="text-muted small">
+                                {% if property.bedrooms_total %}{{ property.bedrooms_total }} bd{% endif %}
+                                {% if property.bathrooms_total_integer %} / {{ property.bathrooms_total_integer }} ba{% endif %}
+                                {% if property.living_area %} / {{ property.living_area|floatformat:0|intcomma }} sqft{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>{{ property.city|default:"-" }}</td>
+                        <td>
+                            <span class="badge {% if property.standard_status == 'Closed' %}badge-status-closed{% elif property.standard_status == 'Active' %}badge-status-active{% elif property.standard_status == 'Pending' %}badge-status-pending{% else %}bg-secondary bg-opacity-25 text-body{% endif %}">
+                                {{ property.standard_status|default:"-" }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            {% if property.close_price %}
+                            <span class="volume-display">${{ property.close_price|floatformat:0|intcomma }}</span>
+                            {% elif property.list_price %}
+                            <span class="text-muted">${{ property.list_price|floatformat:0|intcomma }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if property.list_agent_full_name %}
+                            <span class="small">{{ property.list_agent_full_name|truncatechars:20 }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if property.buyer_agent_full_name %}
+                            <span class="small">{{ property.buyer_agent_full_name|truncatechars:20 }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-muted small">
+                            {{ property.close_date|date:"M j, Y"|default:"-" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-house-slash fs-1 d-block mb-2"></i>
+                            <p class="mb-0">No properties found matching your criteria</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<nav class="mt-4" aria-label="Property list pagination">
+    <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+

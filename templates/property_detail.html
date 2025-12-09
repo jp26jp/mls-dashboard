@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ property.unparsed_address|default:"Property" }} - MLS Sales Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'sales:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'sales:property_list' %}" class="text-decoration-none">Properties</a></li>
+                <li class="breadcrumb-item active">{{ property.listing_id|default:property.listing_key_numeric }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Property Header -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="d-flex align-items-start mb-3">
+                    <span class="badge {% if property.standard_status == 'Closed' %}badge-status-closed{% elif property.standard_status == 'Active' %}badge-status-active{% elif property.standard_status == 'Pending' %}badge-status-pending{% else %}bg-secondary bg-opacity-25 text-body{% endif %} me-2">
+                        {{ property.standard_status|default:"Unknown" }}
+                    </span>
+                    {% if property.property_type %}
+                    <span class="badge bg-info bg-opacity-25 text-info-emphasis">{{ property.property_type }}</span>
+                    {% endif %}
+                </div>
+                <h1 class="h3 mb-2">{{ property.unparsed_address|default:property.full_address }}</h1>
+                <p class="text-muted mb-0">
+                    {{ property.city }}{% if property.state_or_province %}, {{ property.state_or_province }}{% endif %}
+                    {% if property.postal_code %} {{ property.postal_code }}{% endif %}
+                </p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                {% if property.close_price %}
+                <div class="stat-label mb-1">Sold Price</div>
+                <div class="stat-value">${{ property.close_price|floatformat:0|intcomma }}</div>
+                {% elif property.list_price %}
+                <div class="stat-label mb-1">List Price</div>
+                <div class="stat-value">${{ property.list_price|floatformat:0|intcomma }}</div>
+                {% endif %}
+                {% if property.close_date %}
+                <div class="text-muted mt-2">Closed {{ property.close_date|date:"F j, Y" }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Property Details -->
+<div class="row g-4 mb-4">
+    <!-- Key Details -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header py-3">
+                <i class="bi bi-house-door me-2"></i>Property Details
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    {% if property.bedrooms_total %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Bedrooms</div>
+                        <div class="fw-semibold fs-5">{{ property.bedrooms_total }}</div>
+                    </div>
+                    {% endif %}
+                    {% if property.bathrooms_total_integer %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Bathrooms</div>
+                        <div class="fw-semibold fs-5">{{ property.bathrooms_total_integer }}</div>
+                    </div>
+                    {% endif %}
+                    {% if property.living_area %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Living Area</div>
+                        <div class="fw-semibold fs-5">{{ property.living_area|floatformat:0|intcomma }} sqft</div>
+                    </div>
+                    {% endif %}
+                    {% if property.year_built %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Year Built</div>
+                        <div class="fw-semibold fs-5">{{ property.year_built }}</div>
+                    </div>
+                    {% endif %}
+                    {% if property.lot_size_acres %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Lot Size</div>
+                        <div class="fw-semibold fs-5">{{ property.lot_size_acres|floatformat:2 }} acres</div>
+                    </div>
+                    {% endif %}
+                    {% if property.garage_spaces %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Garage</div>
+                        <div class="fw-semibold fs-5">{{ property.garage_spaces|floatformat:0 }} cars</div>
+                    </div>
+                    {% endif %}
+                    {% if property.days_on_market %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Days on Market</div>
+                        <div class="fw-semibold fs-5">{{ property.days_on_market }}</div>
+                    </div>
+                    {% endif %}
+                    {% if property.property_sub_type %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small mb-1">Property Type</div>
+                        <div class="fw-semibold fs-5">{{ property.property_sub_type }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if property.public_remarks %}
+                <hr class="my-4" style="border-color: var(--card-border);">
+                <h6 class="mb-3">Description</h6>
+                <p class="mb-0 text-muted">{{ property.public_remarks }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Pricing & Dates -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header py-3">
+                <i class="bi bi-currency-dollar me-2"></i>Pricing
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    {% if property.close_price %}
+                    <tr>
+                        <td class="text-muted">Close Price</td>
+                        <td class="text-end fw-semibold volume-display">${{ property.close_price|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if property.list_price %}
+                    <tr>
+                        <td class="text-muted">List Price</td>
+                        <td class="text-end">${{ property.list_price|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if property.original_list_price and property.original_list_price != property.list_price %}
+                    <tr>
+                        <td class="text-muted">Original Price</td>
+                        <td class="text-end">${{ property.original_list_price|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if property.tax_annual_amount %}
+                    <tr>
+                        <td class="text-muted">Annual Tax</td>
+                        <td class="text-end">${{ property.tax_annual_amount|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-calendar me-2"></i>Key Dates
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    {% if property.listing_contract_date %}
+                    <tr>
+                        <td class="text-muted">Listed</td>
+                        <td class="text-end">{{ property.listing_contract_date|date:"M j, Y" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if property.on_market_date %}
+                    <tr>
+                        <td class="text-muted">On Market</td>
+                        <td class="text-end">{{ property.on_market_date|date:"M j, Y" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if property.purchase_contract_date %}
+                    <tr>
+                        <td class="text-muted">Under Contract</td>
+                        <td class="text-end">{{ property.purchase_contract_date|date:"M j, Y" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if property.close_date %}
+                    <tr>
+                        <td class="text-muted">Closed</td>
+                        <td class="text-end fw-semibold">{{ property.close_date|date:"M j, Y" }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agents -->
+<div class="row g-4">
+    <!-- Listing Agent -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header py-3">
+                <i class="bi bi-person-badge me-2"></i>Listing Agent
+            </div>
+            <div class="card-body">
+                {% if property.list_agent_full_name %}
+                <div class="d-flex align-items-center">
+                    <div class="agent-avatar me-3">
+                        {{ property.list_agent_first_name|slice:":1"|default:"L" }}{{ property.list_agent_last_name|slice:":1"|default:"A" }}
+                    </div>
+                    <div>
+                        {% if list_agent %}
+                        <a href="{% url 'sales:agent_detail' list_agent.member_key_numeric %}" class="text-decoration-none fw-semibold fs-5">
+                            {{ property.list_agent_full_name }}
+                        </a>
+                        {% else %}
+                        <div class="fw-semibold fs-5">{{ property.list_agent_full_name }}</div>
+                        {% endif %}
+                        <div class="text-muted">{{ property.list_office_name|default:"" }}</div>
+                    </div>
+                </div>
+                {% if property.list_agent_preferred_phone %}
+                <div class="mt-3">
+                    <a href="tel:{{ property.list_agent_preferred_phone }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-telephone me-1"></i> {{ property.list_agent_preferred_phone }}
+                    </a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-0">No listing agent information available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Buyer Agent -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header py-3">
+                <i class="bi bi-person-check me-2"></i>Buyer Agent
+            </div>
+            <div class="card-body">
+                {% if property.buyer_agent_full_name %}
+                <div class="d-flex align-items-center">
+                    <div class="agent-avatar me-3">
+                        {{ property.buyer_agent_first_name|slice:":1"|default:"B" }}{{ property.buyer_agent_last_name|slice:":1"|default:"A" }}
+                    </div>
+                    <div>
+                        {% if buyer_agent %}
+                        <a href="{% url 'sales:agent_detail' buyer_agent.member_key_numeric %}" class="text-decoration-none fw-semibold fs-5">
+                            {{ property.buyer_agent_full_name }}
+                        </a>
+                        {% else %}
+                        <div class="fw-semibold fs-5">{{ property.buyer_agent_full_name }}</div>
+                        {% endif %}
+                        <div class="text-muted">{{ property.buyer_office_name|default:"" }}</div>
+                    </div>
+                </div>
+                {% if property.buyer_agent_preferred_phone %}
+                <div class="mt-3">
+                    <a href="tel:{{ property.buyer_agent_preferred_phone }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-telephone me-1"></i> {{ property.buyer_agent_preferred_phone }}
+                    </a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-0">No buyer agent information available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

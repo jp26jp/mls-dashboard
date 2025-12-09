@@ -1,0 +1,2 @@
+"""Sales app migrations."""
+

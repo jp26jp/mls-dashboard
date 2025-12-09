@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Agents - MLS Sales Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'sales:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+                <li class="breadcrumb-item active">Agents</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-1"><i class="bi bi-people me-2"></i>Agent Directory</h1>
+        <p class="text-muted mb-0">Search and browse WFRMLS members</p>
+    </div>
+</div>
+
+<!-- Search & Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Agent Name</label>
+                {{ filterset.form.name }}
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Association of Realtors</label>
+                {{ filterset.form.aor }}
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Office Name</label>
+                {{ filterset.form.office }}
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Count -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="mb-0 text-muted">
+        <strong>{{ total_agents|intcomma }}</strong> agents found
+    </p>
+    {% if request.GET %}
+    <a href="{% url 'sales:agent_list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-x-lg me-1"></i> Clear Filters
+    </a>
+    {% endif %}
+</div>
+
+<!-- Agent Grid -->
+<div class="row g-4">
+    {% for agent in agents %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-start">
+                    <div class="agent-avatar me-3" style="width: 56px; height: 56px; font-size: 1.2rem;">
+                        {{ agent.member_first_name|slice:":1" }}{{ agent.member_last_name|slice:":1" }}
+                    </div>
+                    <div class="flex-grow-1">
+                        <h5 class="card-title mb-1">
+                            <a href="{% url 'sales:agent_detail' agent.member_key_numeric %}" class="text-decoration-none">
+                                {{ agent.member_full_name }}
+                            </a>
+                        </h5>
+                        <p class="text-muted small mb-2">{{ agent.office_name|default:"Independent"|truncatechars:40 }}</p>
+                        {% if agent.member_aor %}
+                        <span class="badge bg-secondary bg-opacity-25 text-body">{{ agent.member_aor }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if agent.member_preferred_phone or agent.member_mobile_phone %}
+                <hr class="my-3" style="border-color: var(--card-border);">
+                <div class="small">
+                    {% if agent.member_preferred_phone %}
+                    <div class="mb-1">
+                        <i class="bi bi-telephone me-2 text-muted"></i>
+                        <a href="tel:{{ agent.member_preferred_phone }}" class="text-decoration-none">
+                            {{ agent.member_preferred_phone }}
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if agent.member_mobile_phone and agent.member_mobile_phone != agent.member_preferred_phone %}
+                    <div>
+                        <i class="bi bi-phone me-2 text-muted"></i>
+                        <a href="tel:{{ agent.member_mobile_phone }}" class="text-decoration-none">
+                            {{ agent.member_mobile_phone }}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent border-top" style="border-color: var(--card-border) !important;">
+                <a href="{% url 'sales:agent_detail' agent.member_key_numeric %}" class="btn btn-sm btn-outline-primary w-100">
+                    View Profile <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5 text-muted">
+                <i class="bi bi-person-x fs-1 d-block mb-2"></i>
+                <p class="mb-0">No agents found matching your criteria</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<nav class="mt-4" aria-label="Agent list pagination">
+    <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
