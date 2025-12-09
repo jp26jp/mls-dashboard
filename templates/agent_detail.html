@@ -31,7 +31,7 @@
                 <div class="d-flex flex-wrap gap-2">
                     {% if agent.member_aor %}
                     <span class="badge bg-primary bg-opacity-25 text-primary-emphasis">
-                        <i class="bi bi-geo-alt me-1"></i>{{ agent.member_aor }}
+                        <i class="fa-duotone fa-solid fa-location-dot me-1"></i>{{ agent.member_aor }}
                     </span>
                     {% endif %}
                     {% if agent.member_status %}
@@ -49,7 +49,7 @@
             <div class="col-auto">
                 {% if agent.member_preferred_phone %}
                 <a href="tel:{{ agent.member_preferred_phone }}" class="btn btn-primary">
-                    <i class="bi bi-telephone me-1"></i> {{ agent.member_preferred_phone }}
+                    <i class="fa-duotone fa-solid fa-phone me-1"></i> {{ agent.member_preferred_phone }}
                 </a>
                 {% endif %}
             </div>
@@ -61,34 +61,62 @@
 <div class="row g-4 mb-4">
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">Year Volume</div>
-                <div class="stat-value">${{ year_volume|floatformat:0|intcomma }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Year Volume</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.3rem !important;">${{ year_volume|floatformat:0|intcomma }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-tpg fa-duotone fa-solid fa-sack-dollar"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card success h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">Transactions</div>
-                <div class="stat-value">{{ year_transaction_count }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Transactions</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.3rem !important;">{{ year_transaction_count }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-green fa-duotone fa-solid fa-handshake"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     {% if current_stats %}
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">Overall Rank</div>
-                <div class="stat-value">#{{ current_stats.rank_overall|default:"-" }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">Overall Rank</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.3rem !important;">#{{ current_stats.rank_overall|default:"-" }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-tpg fa-duotone fa-solid fa-ranking-star"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-6 col-lg-3">
         <div class="card stat-card warning h-100">
-            <div class="card-body text-center">
-                <div class="stat-label mb-2">AOR Rank</div>
-                <div class="stat-value">#{{ current_stats.rank_in_aor|default:"-" }}</div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <p class="text-uppercase text-body-secondary mb-2 f-11 fw-normal">AOR Rank</p>
+                        <p class="fw-normal mb-0 stat-value" style="font-size: 1.3rem !important;">#{{ current_stats.rank_in_aor|default:"-" }}</p>
+                    </div>
+                    <div class="col-auto">
+                        <i class="f-25 text-purple fa-duotone fa-solid fa-trophy"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -101,43 +129,43 @@
     <div class="col-lg-4">
         <div class="card h-100">
             <div class="card-header py-3">
-                <i class="bi bi-person-vcard me-2"></i>Contact Information
+                <i class="fa-duotone fa-solid fa-address-card me-2 text-tpg"></i>Contact Information
             </div>
             <div class="card-body">
                 <table class="table table-borderless mb-0">
                     {% if agent.member_preferred_phone %}
                     <tr>
-                        <td class="text-muted" style="width: 40%;"><i class="bi bi-telephone me-2"></i>Phone</td>
+                        <td class="text-muted" style="width: 40%;"><i class="fa-duotone fa-solid fa-phone me-2"></i>Phone</td>
                         <td><a href="tel:{{ agent.member_preferred_phone }}" class="text-decoration-none">{{ agent.member_preferred_phone }}</a></td>
                     </tr>
                     {% endif %}
                     {% if agent.member_mobile_phone and agent.member_mobile_phone != agent.member_preferred_phone %}
                     <tr>
-                        <td class="text-muted"><i class="bi bi-phone me-2"></i>Mobile</td>
+                        <td class="text-muted"><i class="fa-duotone fa-solid fa-mobile me-2"></i>Mobile</td>
                         <td><a href="tel:{{ agent.member_mobile_phone }}" class="text-decoration-none">{{ agent.member_mobile_phone }}</a></td>
                     </tr>
                     {% endif %}
                     {% if agent.member_office_phone %}
                     <tr>
-                        <td class="text-muted"><i class="bi bi-building me-2"></i>Office</td>
+                        <td class="text-muted"><i class="fa-duotone fa-solid fa-building me-2"></i>Office</td>
                         <td><a href="tel:{{ agent.member_office_phone }}" class="text-decoration-none">{{ agent.member_office_phone }}</a></td>
                     </tr>
                     {% endif %}
                     {% if agent.member_mls_id %}
                     <tr>
-                        <td class="text-muted"><i class="bi bi-hash me-2"></i>MLS ID</td>
+                        <td class="text-muted"><i class="fa-duotone fa-solid fa-hashtag me-2"></i>MLS ID</td>
                         <td><code>{{ agent.member_mls_id }}</code></td>
                     </tr>
                     {% endif %}
                     {% if agent.member_state_license %}
                     <tr>
-                        <td class="text-muted"><i class="bi bi-card-text me-2"></i>License</td>
+                        <td class="text-muted"><i class="fa-duotone fa-solid fa-id-card me-2"></i>License</td>
                         <td>{{ agent.member_state_license }}</td>
                     </tr>
                     {% endif %}
                     {% if agent.member_designation %}
                     <tr>
-                        <td class="text-muted"><i class="bi bi-award me-2"></i>Designations</td>
+                        <td class="text-muted"><i class="fa-duotone fa-solid fa-award me-2"></i>Designations</td>
                         <td>{{ agent.member_designation }}</td>
                     </tr>
                     {% endif %}
@@ -150,7 +178,7 @@
     <div class="col-lg-8">
         <div class="card h-100">
             <div class="card-header py-3">
-                <i class="bi bi-graph-up me-2"></i>Performance History
+                <i class="fa-duotone fa-solid fa-chart-line me-2 text-tpg"></i>Performance History
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -198,7 +226,7 @@
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header py-3">
-                <i class="bi bi-house-add me-2"></i>Recent Listings Sold
+                <i class="fa-duotone fa-solid fa-house-circle-check me-2 text-tpg"></i>Recent Listings Sold
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -240,7 +268,7 @@
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header py-3">
-                <i class="bi bi-house-check me-2"></i>Recent Buyer Side Transactions
+                <i class="fa-duotone fa-solid fa-key me-2 text-tpg"></i>Recent Buyer Side Transactions
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -279,4 +307,3 @@
     </div>
 </div>
 {% endblock %}
-

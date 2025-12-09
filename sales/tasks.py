@@ -712,11 +712,10 @@ def calculate_agent_stats(year: Optional[int] = None) -> int:
 
     logger.info(f"Calculating agent stats for {year}...")
 
-    # Get all closed properties for the year
+    # Get all closed properties for the year (all property types)
     closed_properties = Property.objects.filter(
         standard_status="Closed",
         close_date__year=year,
-        property_type="Residential",
     )
 
     # Calculate volumes for both listing and buying sides per AOR
