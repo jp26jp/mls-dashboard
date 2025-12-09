@@ -14,19 +14,18 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from wfrmls import MlsApi
-from wfrmls.dataclasses import MemberData, PropertyData
+from wfrmls import WFRMLSClient
 
 from .models import AgentStats, Member, Property, SyncLog
 
 logger = logging.getLogger(__name__)
 
 
-def get_mls_api() -> MlsApi:
-    """Get configured MLS API instance.
+def get_mls_client() -> WFRMLSClient:
+    """Get configured WFRMLS client instance.
 
     Returns:
-        Configured MlsApi instance.
+        Configured WFRMLSClient instance.
 
     Raises:
         ValueError: If WFRMLS_BEARER_TOKEN is not configured.
@@ -34,7 +33,7 @@ def get_mls_api() -> MlsApi:
     token = settings.WFRMLS_BEARER_TOKEN
     if not token:
         raise ValueError("WFRMLS_BEARER_TOKEN not configured in settings")
-    return MlsApi(bearer_token=token)
+    return WFRMLSClient(bearer_token=token)
 
 
 def sync_members(full_sync: bool = False) -> SyncLog:
@@ -53,7 +52,7 @@ def sync_members(full_sync: bool = False) -> SyncLog:
     )
 
     try:
-        wfrmls_api = get_mls_api()
+        client = get_mls_client()
         records_processed = 0
         records_created = 0
         records_updated = 0
@@ -67,85 +66,121 @@ def sync_members(full_sync: bool = False) -> SyncLog:
                 logger.info(f"Incremental sync from {last_timestamp}")
 
         logger.info("Fetching active members from WFRMLS...")
-        response = wfrmls_api.get_active_members()
 
-        for r in response:
-            try:
-                member_data = MemberData(**r().data)
-                records_processed += 1
+        # Use pagination to get all active members
+        response = client.member.get_active_members(top=200)
+        members_data = response.get("value", [])
 
-                # Track the latest modification timestamp
-                if member_data.ModificationTimestamp:
-                    mod_ts = member_data.ModificationTimestamp
-                    if isinstance(mod_ts, str):
-                        mod_ts = datetime.fromisoformat(
-                            mod_ts.replace("Z", "+00:00")
-                        )
-                    if sync_log.last_modification_timestamp is None:
-                        sync_log.last_modification_timestamp = mod_ts
-                    elif mod_ts > sync_log.last_modification_timestamp:
-                        sync_log.last_modification_timestamp = mod_ts
+        # Process initial batch and follow pagination
+        while True:
+            for member_data in members_data:
+                try:
+                    records_processed += 1
 
-                # Skip if no changes since last sync (incremental mode)
-                if last_timestamp and member_data.ModificationTimestamp:
-                    mod_ts = member_data.ModificationTimestamp
-                    if isinstance(mod_ts, str):
-                        mod_ts = datetime.fromisoformat(
-                            mod_ts.replace("Z", "+00:00")
-                        )
-                    if mod_ts <= last_timestamp:
+                    # Track the latest modification timestamp
+                    mod_timestamp = member_data.get("ModificationTimestamp")
+                    if mod_timestamp:
+                        if isinstance(mod_timestamp, str):
+                            mod_ts = datetime.fromisoformat(
+                                mod_timestamp.replace("Z", "+00:00")
+                            )
+                        else:
+                            mod_ts = mod_timestamp
+                        if sync_log.last_modification_timestamp is None:
+                            sync_log.last_modification_timestamp = mod_ts
+                        elif mod_ts > sync_log.last_modification_timestamp:
+                            sync_log.last_modification_timestamp = mod_ts
+
+                        # Skip if no changes since last sync (incremental mode)
+                        if last_timestamp and mod_ts <= last_timestamp:
+                            continue
+
+                    member_key_numeric = member_data.get("MemberKeyNumeric")
+                    if not member_key_numeric:
                         continue
 
-                member, created = Member.objects.update_or_create(
-                    member_key_numeric=member_data.MemberKeyNumeric,
-                    defaults={
-                        "office_key_numeric": member_data.OfficeKeyNumeric,
-                        "member_aor_key": member_data.MemberAORkey,
-                        "member_aor": member_data.MemberAOR,
-                        "member_address1": member_data.MemberAddress1,
-                        "member_address2": member_data.MemberAddress2,
-                        "member_city": member_data.MemberCity,
-                        "member_first_name": member_data.MemberFirstName,
-                        "member_full_name": member_data.MemberFullName,
-                        "member_key": member_data.MemberKey,
-                        "member_last_name": member_data.MemberLastName,
-                        "member_middle_name": member_data.MemberMiddleName,
-                        "member_mls_id": member_data.MemberMlsId,
-                        "member_mobile_phone": member_data.MemberMobilePhone,
-                        "member_national_association_id": member_data.MemberNationalAssociationId,
-                        "member_office_phone": member_data.MemberOfficePhone,
-                        "member_postal_code": member_data.MemberPostalCode,
-                        "member_preferred_phone": member_data.MemberPreferredPhone,
-                        "member_state_license": member_data.MemberStateLicense,
-                        "office_key": member_data.OfficeKey,
-                        "office_mls_id": member_data.OfficeMlsId,
-                        "office_name": member_data.OfficeName,
-                        "originating_system_member_key": member_data.OriginatingSystemMemberKey,
-                        "originating_system_name": member_data.OriginatingSystemName,
-                        "member_mls_access_yn": member_data.MemberMlsAccessYN,
-                        "modification_timestamp": member_data.ModificationTimestamp,
-                        "original_entry_timestamp": member_data.OriginalEntryTimestamp,
-                        "member_country": member_data.MemberCountry,
-                        "member_county_or_parish": member_data.MemberCountyOrParish,
-                        "member_state_license_state": member_data.MemberStateLicenseState,
-                        "member_state_or_province": member_data.MemberStateOrProvince,
-                        "member_status": member_data.MemberStatus,
-                        "member_type": member_data.MemberType,
-                        "member_designation": member_data.MemberDesignation,
-                    },
-                )
+                    member, created = Member.objects.update_or_create(
+                        member_key_numeric=member_key_numeric,
+                        defaults={
+                            "office_key_numeric": member_data.get("OfficeKeyNumeric"),
+                            "member_aor_key": member_data.get("MemberAORkey"),
+                            "member_aor": member_data.get("MemberAOR"),
+                            "member_address1": member_data.get("MemberAddress1"),
+                            "member_address2": member_data.get("MemberAddress2"),
+                            "member_city": member_data.get("MemberCity"),
+                            "member_first_name": member_data.get("MemberFirstName"),
+                            "member_full_name": member_data.get("MemberFullName"),
+                            "member_key": member_data.get("MemberKey"),
+                            "member_last_name": member_data.get("MemberLastName"),
+                            "member_middle_name": member_data.get("MemberMiddleName"),
+                            "member_mls_id": member_data.get("MemberMlsId"),
+                            "member_mobile_phone": member_data.get("MemberMobilePhone"),
+                            "member_national_association_id": member_data.get(
+                                "MemberNationalAssociationId"
+                            ),
+                            "member_office_phone": member_data.get("MemberOfficePhone"),
+                            "member_postal_code": member_data.get("MemberPostalCode"),
+                            "member_preferred_phone": member_data.get(
+                                "MemberPreferredPhone"
+                            ),
+                            "member_state_license": member_data.get(
+                                "MemberStateLicense"
+                            ),
+                            "office_key": member_data.get("OfficeKey"),
+                            "office_mls_id": member_data.get("OfficeMlsId"),
+                            "office_name": member_data.get("OfficeName"),
+                            "originating_system_member_key": member_data.get(
+                                "OriginatingSystemMemberKey"
+                            ),
+                            "originating_system_name": member_data.get(
+                                "OriginatingSystemName"
+                            ),
+                            "member_mls_access_yn": member_data.get("MemberMlsAccessYN"),
+                            "modification_timestamp": mod_timestamp,
+                            "original_entry_timestamp": member_data.get(
+                                "OriginalEntryTimestamp"
+                            ),
+                            "member_country": member_data.get("MemberCountry"),
+                            "member_county_or_parish": member_data.get(
+                                "MemberCountyOrParish"
+                            ),
+                            "member_state_license_state": member_data.get(
+                                "MemberStateLicenseState"
+                            ),
+                            "member_state_or_province": member_data.get(
+                                "MemberStateOrProvince"
+                            ),
+                            "member_status": member_data.get("MemberStatus"),
+                            "member_type": member_data.get("MemberType"),
+                            "member_designation": member_data.get("MemberDesignation"),
+                        },
+                    )
 
-                if created:
-                    records_created += 1
-                else:
-                    records_updated += 1
+                    if created:
+                        records_created += 1
+                    else:
+                        records_updated += 1
 
-                if records_processed % 500 == 0:
-                    logger.info(f"Processed {records_processed} members...")
+                    if records_processed % 500 == 0:
+                        logger.info(f"Processed {records_processed} members...")
 
-            except Exception as e:
-                logger.error(f"Error processing member: {e}")
-                continue
+                except Exception as e:
+                    logger.error(f"Error processing member: {e}")
+                    continue
+
+            # Check for next page
+            next_link = response.get("@odata.nextLink")
+            if not next_link:
+                break
+
+            # Extract the endpoint from the next link
+            # The nextLink is a full URL, we need just the path + query
+            if "?" in next_link:
+                endpoint = next_link.split("/odata/")[1] if "/odata/" in next_link else next_link
+                response = client.member.get(endpoint)
+                members_data = response.get("value", [])
+            else:
+                break
 
         sync_log.records_processed = records_processed
         sync_log.records_created = records_created
@@ -170,344 +205,354 @@ def sync_members(full_sync: bool = False) -> SyncLog:
     return sync_log
 
 
-def process_single_property(property_data: PropertyData) -> tuple[Property, bool]:
+def process_single_property(property_data: dict[str, Any]) -> tuple[Property, bool]:
     """Process and save a single property.
 
     Args:
-        property_data: PropertyData instance from the API.
+        property_data: Property data dictionary from the API.
 
     Returns:
         Tuple of (Property instance, was_created boolean).
     """
     property_obj, created = Property.objects.update_or_create(
-        listing_key_numeric=property_data.ListingKeyNumeric,
-        buyer_agent_key_numeric=property_data.BuyerAgentKeyNumeric,
-        list_agent_key_numeric=property_data.ListAgentKeyNumeric,
-        standard_status=property_data.StandardStatus,
+        listing_key_numeric=property_data.get("ListingKeyNumeric"),
+        buyer_agent_key_numeric=property_data.get("BuyerAgentKeyNumeric"),
+        list_agent_key_numeric=property_data.get("ListAgentKeyNumeric"),
+        standard_status=property_data.get("StandardStatus"),
         defaults={
-            "association_fee": property_data.AssociationFee,
-            "rooms_total": property_data.RoomsTotal,
-            "stories": property_data.Stories,
-            "bathrooms_full": property_data.BathroomsFull,
-            "bathrooms_half": property_data.BathroomsHalf,
-            "bathrooms_three_quarter": property_data.BathroomsThreeQuarter,
-            "bathrooms_partial": property_data.BathroomsPartial,
-            "bathrooms_total_integer": property_data.BathroomsTotalInteger,
-            "bedrooms_total": property_data.BedroomsTotal,
-            "buyer_office_key_numeric": property_data.BuyerOfficeKeyNumeric,
-            "carport_spaces": property_data.CarportSpaces,
-            "covered_spaces": property_data.CoveredSpaces,
-            "close_price": property_data.ClosePrice,
-            "co_list_agent_key_numeric": property_data.CoListAgentKeyNumeric,
-            "co_list_office_key_numeric": property_data.CoListOfficeKeyNumeric,
-            "concessions_amount": property_data.ConcessionsAmount,
-            "cumulative_days_on_market": property_data.CumulativeDaysOnMarket,
-            "days_on_market": property_data.DaysOnMarket,
-            "fireplaces_total": property_data.FireplacesTotal,
-            "garage_spaces": property_data.GarageSpaces,
-            "list_office_key_numeric": property_data.ListOfficeKeyNumeric,
-            "list_price": property_data.ListPrice,
-            "lease_amount": property_data.LeaseAmount,
-            "living_area": property_data.LivingArea,
-            "building_area_total": property_data.BuildingAreaTotal,
-            "lot_size_acres": property_data.LotSizeAcres,
-            "lot_size_square_feet": property_data.LotSizeSquareFeet,
-            "number_of_buildings": property_data.NumberOfBuildings,
-            "number_of_units_leased": property_data.NumberOfUnitsLeased,
-            "number_of_units_total": property_data.NumberOfUnitsTotal,
-            "lot_size_area": property_data.LotSizeArea,
-            "main_level_bedrooms": property_data.MainLevelBedrooms,
-            "original_list_price": property_data.OriginalListPrice,
-            "parking_total": property_data.ParkingTotal,
-            "open_parking_spaces": property_data.OpenParkingSpaces,
-            "photos_count": property_data.PhotosCount,
-            "street_number_numeric": property_data.StreetNumberNumeric,
-            "tax_annual_amount": property_data.TaxAnnualAmount,
-            "year_built": property_data.YearBuilt,
-            "year_built_effective": property_data.YearBuiltEffective,
-            "mobile_length": property_data.MobileLength,
-            "mobile_width": property_data.MobileWidth,
-            "bathrooms_one_quarter": property_data.BathroomsOneQuarter,
-            "cap_rate": property_data.CapRate,
-            "number_of_pads": property_data.NumberOfPads,
-            "stories_total": property_data.StoriesTotal,
-            "year_established": property_data.YearEstablished,
-            "association_name": property_data.AssociationName,
-            "association_phone": property_data.AssociationPhone,
-            "buyer_agent_fax": property_data.BuyerAgentFax,
-            "buyer_agent_first_name": property_data.BuyerAgentFirstName,
-            "buyer_agent_full_name": property_data.BuyerAgentFullName,
-            "buyer_agent_key": property_data.BuyerAgentKey,
-            "buyer_agent_last_name": property_data.BuyerAgentLastName,
-            "buyer_agent_middle_name": property_data.BuyerAgentMiddleName,
-            "buyer_agent_mls_id": property_data.BuyerAgentMlsId,
-            "buyer_agent_office_phone": property_data.BuyerAgentOfficePhone,
-            "buyer_agent_preferred_phone": property_data.BuyerAgentPreferredPhone,
-            "buyer_agent_state_license": property_data.BuyerAgentStateLicense,
-            "buyer_agent_url": property_data.BuyerAgentURL,
-            "buyer_office_fax": property_data.BuyerOfficeFax,
-            "buyer_office_key": property_data.BuyerOfficeKey,
-            "buyer_office_mls_id": property_data.BuyerOfficeMlsId,
-            "buyer_office_name": property_data.BuyerOfficeName,
-            "buyer_office_phone": property_data.BuyerOfficePhone,
-            "buyer_office_url": property_data.BuyerOfficeURL,
-            "co_list_agent_fax": property_data.CoListAgentFax,
-            "co_list_agent_first_name": property_data.CoListAgentFirstName,
-            "co_list_agent_full_name": property_data.CoListAgentFullName,
-            "co_list_agent_key": property_data.CoListAgentKey,
-            "co_list_agent_last_name": property_data.CoListAgentLastName,
-            "co_list_agent_middle_name": property_data.CoListAgentMiddleName,
-            "co_list_agent_mls_id": property_data.CoListAgentMlsId,
-            "co_list_agent_office_phone": property_data.CoListAgentOfficePhone,
-            "co_list_agent_preferred_phone": property_data.CoListAgentPreferredPhone,
-            "co_list_agent_state_license": property_data.CoListAgentStateLicense,
-            "co_list_agent_url": property_data.CoListAgentURL,
-            "co_list_office_fax": property_data.CoListOfficeFax,
-            "co_list_office_key": property_data.CoListOfficeKey,
-            "co_list_office_mls_id": property_data.CoListOfficeMlsId,
-            "co_list_office_name": property_data.CoListOfficeName,
-            "co_list_office_phone": property_data.CoListOfficePhone,
-            "co_list_office_url": property_data.CoListOfficeURL,
-            "copyright_notice": property_data.CopyrightNotice,
-            "cross_street": property_data.CrossStreet,
-            "directions": property_data.Directions,
-            "disclaimer": property_data.Disclaimer,
-            "exclusions": property_data.Exclusions,
-            "frontage_length": property_data.FrontageLength,
-            "inclusions": property_data.Inclusions,
-            "list_agent_fax": property_data.ListAgentFax,
-            "list_agent_first_name": property_data.ListAgentFirstName,
-            "list_agent_full_name": property_data.ListAgentFullName,
-            "list_agent_key": property_data.ListAgentKey,
-            "list_agent_last_name": property_data.ListAgentLastName,
-            "list_agent_middle_name": property_data.ListAgentMiddleName,
-            "list_agent_mls_id": property_data.ListAgentMlsId,
-            "list_agent_office_phone": property_data.ListAgentOfficePhone,
-            "list_agent_preferred_phone": property_data.ListAgentPreferredPhone,
-            "list_agent_state_license": property_data.ListAgentStateLicense,
-            "list_agent_url": property_data.ListAgentURL,
-            "list_office_fax": property_data.ListOfficeFax,
-            "list_office_key": property_data.ListOfficeKey,
-            "list_office_mls_id": property_data.ListOfficeMlsId,
-            "list_office_name": property_data.ListOfficeName,
-            "list_office_phone": property_data.ListOfficePhone,
-            "list_office_url": property_data.ListOfficeURL,
-            "listing_id": property_data.ListingId,
-            "listing_key": property_data.ListingKey,
-            "originating_system_id": property_data.OriginatingSystemID,
-            "originating_system_key": property_data.OriginatingSystemKey,
-            "originating_system_name": property_data.OriginatingSystemName,
-            "other_parking": property_data.OtherParking,
-            "ownership": property_data.Ownership,
-            "parcel_number": property_data.ParcelNumber,
-            "postal_code": property_data.PostalCode,
-            "public_remarks": property_data.PublicRemarks,
-            "rv_parking_dimensions": property_data.RVParkingDimensions,
-            "showing_contact_name": property_data.ShowingContactName,
-            "showing_contact_phone": property_data.ShowingContactPhone,
-            "source_system_id": property_data.SourceSystemID,
-            "source_system_key": property_data.SourceSystemKey,
-            "source_system_name": property_data.SourceSystemName,
-            "street_name": property_data.StreetName,
-            "street_number": property_data.StreetNumber,
-            "subdivision_name": property_data.SubdivisionName,
-            "unit_number": property_data.UnitNumber,
-            "unparsed_address": property_data.UnparsedAddress,
-            "virtual_tour_url_branded": property_data.VirtualTourURLBranded,
-            "virtual_tour_url_unbranded": property_data.VirtualTourURLUnbranded,
-            "zoning": property_data.Zoning,
-            "zoning_description": property_data.ZoningDescription,
-            "lot_size_dimensions": property_data.LotSizeDimensions,
-            "topography": property_data.Topography,
-            "builder_name": property_data.BuilderName,
-            "buyer_team_name": property_data.BuyerTeamName,
-            "co_buyer_agent_first_name": property_data.CoBuyerAgentFirstName,
-            "co_buyer_agent_full_name": property_data.CoBuyerAgentFullName,
-            "co_buyer_agent_last_name": property_data.CoBuyerAgentLastName,
-            "co_buyer_agent_state_license": property_data.CoBuyerAgentStateLicense,
-            "co_buyer_office_mls_id": property_data.CoBuyerOfficeMlsId,
-            "co_buyer_office_name": property_data.CoBuyerOfficeName,
-            "doh1": property_data.DOH1,
-            "doh2": property_data.DOH2,
-            "doh3": property_data.DOH3,
-            "license1": property_data.License1,
-            "license2": property_data.License2,
-            "license3": property_data.License3,
-            "make": property_data.Make,
-            "model": property_data.Model,
-            "park_name": property_data.ParkName,
-            "postal_code_plus4": property_data.PostalCodePlus4,
-            "serial_u": property_data.SerialU,
-            "serial_x": property_data.SerialX,
-            "serial_xx": property_data.SerialXX,
-            "street_additional_info": property_data.StreetAdditionalInfo,
-            "street_suffix_modifier": property_data.StreetSuffixModifier,
-            "water_body_name": property_data.WaterBodyName,
-            "association_yn": property_data.AssociationYN,
-            "attached_garage_yn": property_data.AttachedGarageYN,
-            "carport_yn": property_data.CarportYN,
-            "cooling_yn": property_data.CoolingYN,
-            "fireplace_yn": property_data.FireplaceYN,
-            "garage_yn": property_data.GarageYN,
-            "heating_yn": property_data.HeatingYN,
-            "home_warranty_yn": property_data.HomeWarrantyYN,
-            "horse_yn": property_data.HorseYN,
-            "internet_address_display_yn": property_data.InternetAddressDisplayYN,
-            "searchable_yn": property_data.SearchableYN,
-            "internet_entire_listing_display_yn": property_data.InternetEntireListingDisplayYN,
-            "open_parking_yn": property_data.OpenParkingYN,
-            "pool_private_yn": property_data.PoolPrivateYN,
-            "senior_community_yn": property_data.SeniorCommunityYN,
-            "spa_yn": property_data.SpaYN,
-            "view_yn": property_data.ViewYN,
-            "new_construction_yn": property_data.NewConstructionYN,
-            "internet_automated_valuation_display_yn": property_data.InternetAutomatedValuationDisplayYN,
-            "internet_consumer_comment_yn": property_data.InternetConsumerCommentYN,
-            "lease_considered_yn": property_data.LeaseConsideredYN,
-            "property_attached_yn": property_data.PropertyAttachedYN,
-            "waterfront_yn": property_data.WaterfrontYN,
-            "close_date": property_data.CloseDate,
-            "contingent_date": property_data.ContingentDate,
-            "contract_status_change_date": property_data.ContractStatusChangeDate,
-            "listing_contract_date": property_data.ListingContractDate,
-            "off_market_date": property_data.OffMarketDate,
-            "on_market_date": property_data.OnMarketDate,
-            "purchase_contract_date": property_data.PurchaseContractDate,
-            "withdrawn_date": property_data.WithdrawnDate,
-            "modification_timestamp": property_data.ModificationTimestamp,
-            "original_entry_timestamp": property_data.OriginalEntryTimestamp,
-            "photos_change_timestamp": property_data.PhotosChangeTimestamp,
-            "price_change_timestamp": property_data.PriceChangeTimestamp,
-            "status_change_timestamp": property_data.StatusChangeTimestamp,
-            "association_fee_frequency": property_data.AssociationFeeFrequency,
-            "buyer_agent_aor": property_data.BuyerAgentAOR,
-            "city": property_data.City,
-            "co_list_agent_aor": property_data.CoListAgentAOR,
-            "co_list_office_aor": property_data.CoListOfficeAOR,
-            "concessions": property_data.Concessions,
-            "country": property_data.Country,
-            "county_or_parish": property_data.CountyOrParish,
-            "direction_faces": property_data.DirectionFaces,
-            "elementary_school": property_data.ElementarySchool,
-            "elementary_school_district": property_data.ElementarySchoolDistrict,
-            "high_school": property_data.HighSchool,
-            "high_school_district": property_data.HighSchoolDistrict,
-            "list_agent_aor": property_data.ListAgentAOR,
-            "list_office_aor": property_data.ListOfficeAOR,
-            "listing_service": property_data.ListingService,
-            "living_area_units": property_data.LivingAreaUnits,
-            "lot_size_units": property_data.LotSizeUnits,
-            "mls_area_major": property_data.MLSAreaMajor,
-            "middle_or_junior_school": property_data.MiddleOrJuniorSchool,
-            "middle_or_junior_school_district": property_data.MiddleOrJuniorSchoolDistrict,
-            "mls_status": property_data.MlsStatus,
-            "occupant_type": property_data.OccupantType,
-            "postal_city": property_data.PostalCity,
-            "property_sub_type": property_data.PropertySubType,
-            "property_type": property_data.PropertyType,
-            "state_or_province": property_data.StateOrProvince,
-            "street_dir_prefix": property_data.StreetDirPrefix,
-            "street_dir_suffix": property_data.StreetDirSuffix,
-            "street_suffix": property_data.StreetSuffix,
-            "lease_term": property_data.LeaseTerm,
-            "living_area_source": property_data.LivingAreaSource,
-            "year_built_source": property_data.YearBuiltSource,
-            "accessibility_features": property_data.AccessibilityFeatures,
-            "appliances": property_data.Appliances,
-            "architectural_style": property_data.ArchitecturalStyle,
-            "association_amenities": property_data.AssociationAmenities,
-            "association_fee_includes": property_data.AssociationFeeIncludes,
-            "basement": property_data.Basement,
-            "buyer_agent_designation": property_data.BuyerAgentDesignation,
-            "co_list_agent_designation": property_data.CoListAgentDesignation,
-            "construction_materials": property_data.ConstructionMaterials,
-            "cooling": property_data.Cooling,
-            "door_features": property_data.DoorFeatures,
-            "exterior_features": property_data.ExteriorFeatures,
-            "flooring": property_data.Flooring,
-            "green_building_verification_type": property_data.GreenBuildingVerificationType,
-            "heating": property_data.Heating,
-            "interior_features": property_data.InteriorFeatures,
-            "laundry_features": property_data.LaundryFeatures,
-            "list_agent_designation": property_data.ListAgentDesignation,
-            "listing_terms": property_data.ListingTerms,
-            "lot_features": property_data.LotFeatures,
-            "other_equipment": property_data.OtherEquipment,
-            "parking_features": property_data.ParkingFeatures,
-            "patio_and_porch_features": property_data.PatioAndPorchFeatures,
-            "pool_features": property_data.PoolFeatures,
-            "property_condition": property_data.PropertyCondition,
-            "roof": property_data.Roof,
-            "security_features": property_data.SecurityFeatures,
-            "sewer": property_data.Sewer,
-            "showing_contact_type": property_data.ShowingContactType,
-            "utilities": property_data.Utilities,
-            "vegetation": property_data.Vegetation,
-            "view": property_data.View,
-            "water_source": property_data.WaterSource,
-            "window_features": property_data.WindowFeatures,
-            "current_use": property_data.CurrentUse,
-            "fencing": property_data.Fencing,
-            "fireplace_features": property_data.FireplaceFeatures,
-            "green_energy_generation": property_data.GreenEnergyGeneration,
-            "body_type": property_data.BodyType,
-            "building_features": property_data.BuildingFeatures,
-            "business_type": property_data.BusinessType,
-            "common_walls": property_data.CommonWalls,
-            "community_features": property_data.CommunityFeatures,
-            "electric": property_data.Electric,
-            "foundation_details": property_data.FoundationDetails,
-            "green_energy_efficient": property_data.GreenEnergyEfficient,
-            "green_indoor_air_quality": property_data.GreenIndoorAirQuality,
-            "green_location": property_data.GreenLocation,
-            "green_sustainability": property_data.GreenSustainability,
-            "green_water_conservation": property_data.GreenWaterConservation,
-            "levels": property_data.Levels,
-            "other_structures": property_data.OtherStructures,
-            "possible_use": property_data.PossibleUse,
-            "rent_includes": property_data.RentIncludes,
-            "road_frontage_type": property_data.RoadFrontageType,
-            "road_surface_type": property_data.RoadSurfaceType,
-            "room_type": property_data.RoomType,
-            "skirt": property_data.Skirt,
-            "spa_features": property_data.SpaFeatures,
-            "special_listing_conditions": property_data.SpecialListingConditions,
-            "structure_type": property_data.StructureType,
-            "unit_type_type": property_data.UnitTypeType,
-            "waterfront_features": property_data.WaterfrontFeatures,
-            "geo_location": property_data.GeoLocation,
-            "basement_finished": property_data.BasementFinished,
-            "const_status": property_data.ConstStatus,
-            "power_production_solar_year_install": property_data.PowerProductionSolarYearInstall,
-            "solar_finance_company": property_data.SolarFinanceCompany,
-            "solar_leasing_company": property_data.SolarLeasingCompany,
-            "solar_ownership": property_data.SolarOwnership,
-            "power_production_type": property_data.PowerProductionType,
-            "level_data": property_data.LevelData,
-            "above_grade_finished_area": property_data.AboveGradeFinishedArea,
-            "buyer_financing": property_data.BuyerFinancing,
-            "master_bedroom_level": property_data.MasterBedroomLevel,
-            "irrigation_water_rights_acres": property_data.IrrigationWaterRightsAcres,
-            "cancellation_date": property_data.CancellationDate,
-            "image_status": property_data.ImageStatus,
-            "co_buyer_agent_key_numeric": property_data.CoBuyerAgentKeyNumeric,
-            "co_buyer_agent_fax": property_data.CoBuyerAgentFax,
-            "co_buyer_agent_key": property_data.CoBuyerAgentKey,
-            "co_buyer_agent_middle_name": property_data.CoBuyerAgentMiddleName,
-            "co_buyer_agent_mls_id": property_data.CoBuyerAgentMlsId,
-            "co_buyer_agent_preferred_phone": property_data.CoBuyerAgentPreferredPhone,
-            "co_buyer_agent_url": property_data.CoBuyerAgentURL,
-            "co_buyer_agent_aor": property_data.CoBuyerAgentAOR,
-            "co_buyer_agent_designation": property_data.CoBuyerAgentDesignation,
-            "co_buyer_office_key_numeric": property_data.CoBuyerOfficeKeyNumeric,
-            "co_buyer_office_fax": property_data.CoBuyerOfficeFax,
-            "co_buyer_office_key": property_data.CoBuyerOfficeKey,
-            "co_buyer_office_phone": property_data.CoBuyerOfficePhone,
-            "co_buyer_office_url": property_data.CoBuyerOfficeURL,
-            "idx_contact_information": property_data.IdxContactInformation,
-            "vow_contact_information": property_data.VowContactInformation,
-            "short_term_rental_yn": property_data.ShortTermRentalYN,
-            "adu_yn": property_data.AduYN,
+            "association_fee": property_data.get("AssociationFee"),
+            "rooms_total": property_data.get("RoomsTotal"),
+            "stories": property_data.get("Stories"),
+            "bathrooms_full": property_data.get("BathroomsFull"),
+            "bathrooms_half": property_data.get("BathroomsHalf"),
+            "bathrooms_three_quarter": property_data.get("BathroomsThreeQuarter"),
+            "bathrooms_partial": property_data.get("BathroomsPartial"),
+            "bathrooms_total_integer": property_data.get("BathroomsTotalInteger"),
+            "bedrooms_total": property_data.get("BedroomsTotal"),
+            "buyer_office_key_numeric": property_data.get("BuyerOfficeKeyNumeric"),
+            "carport_spaces": property_data.get("CarportSpaces"),
+            "covered_spaces": property_data.get("CoveredSpaces"),
+            "close_price": property_data.get("ClosePrice"),
+            "co_list_agent_key_numeric": property_data.get("CoListAgentKeyNumeric"),
+            "co_list_office_key_numeric": property_data.get("CoListOfficeKeyNumeric"),
+            "concessions_amount": property_data.get("ConcessionsAmount"),
+            "cumulative_days_on_market": property_data.get("CumulativeDaysOnMarket"),
+            "days_on_market": property_data.get("DaysOnMarket"),
+            "fireplaces_total": property_data.get("FireplacesTotal"),
+            "garage_spaces": property_data.get("GarageSpaces"),
+            "list_office_key_numeric": property_data.get("ListOfficeKeyNumeric"),
+            "list_price": property_data.get("ListPrice"),
+            "lease_amount": property_data.get("LeaseAmount"),
+            "living_area": property_data.get("LivingArea"),
+            "building_area_total": property_data.get("BuildingAreaTotal"),
+            "lot_size_acres": property_data.get("LotSizeAcres"),
+            "lot_size_square_feet": property_data.get("LotSizeSquareFeet"),
+            "number_of_buildings": property_data.get("NumberOfBuildings"),
+            "number_of_units_leased": property_data.get("NumberOfUnitsLeased"),
+            "number_of_units_total": property_data.get("NumberOfUnitsTotal"),
+            "lot_size_area": property_data.get("LotSizeArea"),
+            "main_level_bedrooms": property_data.get("MainLevelBedrooms"),
+            "original_list_price": property_data.get("OriginalListPrice"),
+            "parking_total": property_data.get("ParkingTotal"),
+            "open_parking_spaces": property_data.get("OpenParkingSpaces"),
+            "photos_count": property_data.get("PhotosCount"),
+            "street_number_numeric": property_data.get("StreetNumberNumeric"),
+            "tax_annual_amount": property_data.get("TaxAnnualAmount"),
+            "year_built": property_data.get("YearBuilt"),
+            "year_built_effective": property_data.get("YearBuiltEffective"),
+            "mobile_length": property_data.get("MobileLength"),
+            "mobile_width": property_data.get("MobileWidth"),
+            "bathrooms_one_quarter": property_data.get("BathroomsOneQuarter"),
+            "cap_rate": property_data.get("CapRate"),
+            "number_of_pads": property_data.get("NumberOfPads"),
+            "stories_total": property_data.get("StoriesTotal"),
+            "year_established": property_data.get("YearEstablished"),
+            "association_name": property_data.get("AssociationName"),
+            "association_phone": property_data.get("AssociationPhone"),
+            "buyer_agent_fax": property_data.get("BuyerAgentFax"),
+            "buyer_agent_first_name": property_data.get("BuyerAgentFirstName"),
+            "buyer_agent_full_name": property_data.get("BuyerAgentFullName"),
+            "buyer_agent_key": property_data.get("BuyerAgentKey"),
+            "buyer_agent_last_name": property_data.get("BuyerAgentLastName"),
+            "buyer_agent_middle_name": property_data.get("BuyerAgentMiddleName"),
+            "buyer_agent_mls_id": property_data.get("BuyerAgentMlsId"),
+            "buyer_agent_office_phone": property_data.get("BuyerAgentOfficePhone"),
+            "buyer_agent_preferred_phone": property_data.get("BuyerAgentPreferredPhone"),
+            "buyer_agent_state_license": property_data.get("BuyerAgentStateLicense"),
+            "buyer_agent_url": property_data.get("BuyerAgentURL"),
+            "buyer_office_fax": property_data.get("BuyerOfficeFax"),
+            "buyer_office_key": property_data.get("BuyerOfficeKey"),
+            "buyer_office_mls_id": property_data.get("BuyerOfficeMlsId"),
+            "buyer_office_name": property_data.get("BuyerOfficeName"),
+            "buyer_office_phone": property_data.get("BuyerOfficePhone"),
+            "buyer_office_url": property_data.get("BuyerOfficeURL"),
+            "co_list_agent_fax": property_data.get("CoListAgentFax"),
+            "co_list_agent_first_name": property_data.get("CoListAgentFirstName"),
+            "co_list_agent_full_name": property_data.get("CoListAgentFullName"),
+            "co_list_agent_key": property_data.get("CoListAgentKey"),
+            "co_list_agent_last_name": property_data.get("CoListAgentLastName"),
+            "co_list_agent_middle_name": property_data.get("CoListAgentMiddleName"),
+            "co_list_agent_mls_id": property_data.get("CoListAgentMlsId"),
+            "co_list_agent_office_phone": property_data.get("CoListAgentOfficePhone"),
+            "co_list_agent_preferred_phone": property_data.get("CoListAgentPreferredPhone"),
+            "co_list_agent_state_license": property_data.get("CoListAgentStateLicense"),
+            "co_list_agent_url": property_data.get("CoListAgentURL"),
+            "co_list_office_fax": property_data.get("CoListOfficeFax"),
+            "co_list_office_key": property_data.get("CoListOfficeKey"),
+            "co_list_office_mls_id": property_data.get("CoListOfficeMlsId"),
+            "co_list_office_name": property_data.get("CoListOfficeName"),
+            "co_list_office_phone": property_data.get("CoListOfficePhone"),
+            "co_list_office_url": property_data.get("CoListOfficeURL"),
+            "copyright_notice": property_data.get("CopyrightNotice"),
+            "cross_street": property_data.get("CrossStreet"),
+            "directions": property_data.get("Directions"),
+            "disclaimer": property_data.get("Disclaimer"),
+            "exclusions": property_data.get("Exclusions"),
+            "frontage_length": property_data.get("FrontageLength"),
+            "inclusions": property_data.get("Inclusions"),
+            "list_agent_fax": property_data.get("ListAgentFax"),
+            "list_agent_first_name": property_data.get("ListAgentFirstName"),
+            "list_agent_full_name": property_data.get("ListAgentFullName"),
+            "list_agent_key": property_data.get("ListAgentKey"),
+            "list_agent_last_name": property_data.get("ListAgentLastName"),
+            "list_agent_middle_name": property_data.get("ListAgentMiddleName"),
+            "list_agent_mls_id": property_data.get("ListAgentMlsId"),
+            "list_agent_office_phone": property_data.get("ListAgentOfficePhone"),
+            "list_agent_preferred_phone": property_data.get("ListAgentPreferredPhone"),
+            "list_agent_state_license": property_data.get("ListAgentStateLicense"),
+            "list_agent_url": property_data.get("ListAgentURL"),
+            "list_office_fax": property_data.get("ListOfficeFax"),
+            "list_office_key": property_data.get("ListOfficeKey"),
+            "list_office_mls_id": property_data.get("ListOfficeMlsId"),
+            "list_office_name": property_data.get("ListOfficeName"),
+            "list_office_phone": property_data.get("ListOfficePhone"),
+            "list_office_url": property_data.get("ListOfficeURL"),
+            "listing_id": property_data.get("ListingId"),
+            "listing_key": property_data.get("ListingKey"),
+            "originating_system_id": property_data.get("OriginatingSystemID"),
+            "originating_system_key": property_data.get("OriginatingSystemKey"),
+            "originating_system_name": property_data.get("OriginatingSystemName"),
+            "other_parking": property_data.get("OtherParking"),
+            "ownership": property_data.get("Ownership"),
+            "parcel_number": property_data.get("ParcelNumber"),
+            "postal_code": property_data.get("PostalCode"),
+            "public_remarks": property_data.get("PublicRemarks"),
+            "rv_parking_dimensions": property_data.get("RVParkingDimensions"),
+            "showing_contact_name": property_data.get("ShowingContactName"),
+            "showing_contact_phone": property_data.get("ShowingContactPhone"),
+            "source_system_id": property_data.get("SourceSystemID"),
+            "source_system_key": property_data.get("SourceSystemKey"),
+            "source_system_name": property_data.get("SourceSystemName"),
+            "street_name": property_data.get("StreetName"),
+            "street_number": property_data.get("StreetNumber"),
+            "subdivision_name": property_data.get("SubdivisionName"),
+            "unit_number": property_data.get("UnitNumber"),
+            "unparsed_address": property_data.get("UnparsedAddress"),
+            "virtual_tour_url_branded": property_data.get("VirtualTourURLBranded"),
+            "virtual_tour_url_unbranded": property_data.get("VirtualTourURLUnbranded"),
+            "zoning": property_data.get("Zoning"),
+            "zoning_description": property_data.get("ZoningDescription"),
+            "lot_size_dimensions": property_data.get("LotSizeDimensions"),
+            "topography": property_data.get("Topography"),
+            "builder_name": property_data.get("BuilderName"),
+            "buyer_team_name": property_data.get("BuyerTeamName"),
+            "co_buyer_agent_first_name": property_data.get("CoBuyerAgentFirstName"),
+            "co_buyer_agent_full_name": property_data.get("CoBuyerAgentFullName"),
+            "co_buyer_agent_last_name": property_data.get("CoBuyerAgentLastName"),
+            "co_buyer_agent_state_license": property_data.get("CoBuyerAgentStateLicense"),
+            "co_buyer_office_mls_id": property_data.get("CoBuyerOfficeMlsId"),
+            "co_buyer_office_name": property_data.get("CoBuyerOfficeName"),
+            "doh1": property_data.get("DOH1"),
+            "doh2": property_data.get("DOH2"),
+            "doh3": property_data.get("DOH3"),
+            "license1": property_data.get("License1"),
+            "license2": property_data.get("License2"),
+            "license3": property_data.get("License3"),
+            "make": property_data.get("Make"),
+            "model": property_data.get("Model"),
+            "park_name": property_data.get("ParkName"),
+            "postal_code_plus4": property_data.get("PostalCodePlus4"),
+            "serial_u": property_data.get("SerialU"),
+            "serial_x": property_data.get("SerialX"),
+            "serial_xx": property_data.get("SerialXX"),
+            "street_additional_info": property_data.get("StreetAdditionalInfo"),
+            "street_suffix_modifier": property_data.get("StreetSuffixModifier"),
+            "water_body_name": property_data.get("WaterBodyName"),
+            "association_yn": property_data.get("AssociationYN"),
+            "attached_garage_yn": property_data.get("AttachedGarageYN"),
+            "carport_yn": property_data.get("CarportYN"),
+            "cooling_yn": property_data.get("CoolingYN"),
+            "fireplace_yn": property_data.get("FireplaceYN"),
+            "garage_yn": property_data.get("GarageYN"),
+            "heating_yn": property_data.get("HeatingYN"),
+            "home_warranty_yn": property_data.get("HomeWarrantyYN"),
+            "horse_yn": property_data.get("HorseYN"),
+            "internet_address_display_yn": property_data.get("InternetAddressDisplayYN"),
+            "searchable_yn": property_data.get("SearchableYN"),
+            "internet_entire_listing_display_yn": property_data.get(
+                "InternetEntireListingDisplayYN"
+            ),
+            "open_parking_yn": property_data.get("OpenParkingYN"),
+            "pool_private_yn": property_data.get("PoolPrivateYN"),
+            "senior_community_yn": property_data.get("SeniorCommunityYN"),
+            "spa_yn": property_data.get("SpaYN"),
+            "view_yn": property_data.get("ViewYN"),
+            "new_construction_yn": property_data.get("NewConstructionYN"),
+            "internet_automated_valuation_display_yn": property_data.get(
+                "InternetAutomatedValuationDisplayYN"
+            ),
+            "internet_consumer_comment_yn": property_data.get("InternetConsumerCommentYN"),
+            "lease_considered_yn": property_data.get("LeaseConsideredYN"),
+            "property_attached_yn": property_data.get("PropertyAttachedYN"),
+            "waterfront_yn": property_data.get("WaterfrontYN"),
+            "close_date": property_data.get("CloseDate"),
+            "contingent_date": property_data.get("ContingentDate"),
+            "contract_status_change_date": property_data.get("ContractStatusChangeDate"),
+            "listing_contract_date": property_data.get("ListingContractDate"),
+            "off_market_date": property_data.get("OffMarketDate"),
+            "on_market_date": property_data.get("OnMarketDate"),
+            "purchase_contract_date": property_data.get("PurchaseContractDate"),
+            "withdrawn_date": property_data.get("WithdrawnDate"),
+            "modification_timestamp": property_data.get("ModificationTimestamp"),
+            "original_entry_timestamp": property_data.get("OriginalEntryTimestamp"),
+            "photos_change_timestamp": property_data.get("PhotosChangeTimestamp"),
+            "price_change_timestamp": property_data.get("PriceChangeTimestamp"),
+            "status_change_timestamp": property_data.get("StatusChangeTimestamp"),
+            "association_fee_frequency": property_data.get("AssociationFeeFrequency"),
+            "buyer_agent_aor": property_data.get("BuyerAgentAOR"),
+            "city": property_data.get("City"),
+            "co_list_agent_aor": property_data.get("CoListAgentAOR"),
+            "co_list_office_aor": property_data.get("CoListOfficeAOR"),
+            "concessions": property_data.get("Concessions"),
+            "country": property_data.get("Country"),
+            "county_or_parish": property_data.get("CountyOrParish"),
+            "direction_faces": property_data.get("DirectionFaces"),
+            "elementary_school": property_data.get("ElementarySchool"),
+            "elementary_school_district": property_data.get("ElementarySchoolDistrict"),
+            "high_school": property_data.get("HighSchool"),
+            "high_school_district": property_data.get("HighSchoolDistrict"),
+            "list_agent_aor": property_data.get("ListAgentAOR"),
+            "list_office_aor": property_data.get("ListOfficeAOR"),
+            "listing_service": property_data.get("ListingService"),
+            "living_area_units": property_data.get("LivingAreaUnits"),
+            "lot_size_units": property_data.get("LotSizeUnits"),
+            "mls_area_major": property_data.get("MLSAreaMajor"),
+            "middle_or_junior_school": property_data.get("MiddleOrJuniorSchool"),
+            "middle_or_junior_school_district": property_data.get(
+                "MiddleOrJuniorSchoolDistrict"
+            ),
+            "mls_status": property_data.get("MlsStatus"),
+            "occupant_type": property_data.get("OccupantType"),
+            "postal_city": property_data.get("PostalCity"),
+            "property_sub_type": property_data.get("PropertySubType"),
+            "property_type": property_data.get("PropertyType"),
+            "state_or_province": property_data.get("StateOrProvince"),
+            "street_dir_prefix": property_data.get("StreetDirPrefix"),
+            "street_dir_suffix": property_data.get("StreetDirSuffix"),
+            "street_suffix": property_data.get("StreetSuffix"),
+            "lease_term": property_data.get("LeaseTerm"),
+            "living_area_source": property_data.get("LivingAreaSource"),
+            "year_built_source": property_data.get("YearBuiltSource"),
+            "accessibility_features": property_data.get("AccessibilityFeatures"),
+            "appliances": property_data.get("Appliances"),
+            "architectural_style": property_data.get("ArchitecturalStyle"),
+            "association_amenities": property_data.get("AssociationAmenities"),
+            "association_fee_includes": property_data.get("AssociationFeeIncludes"),
+            "basement": property_data.get("Basement"),
+            "buyer_agent_designation": property_data.get("BuyerAgentDesignation"),
+            "co_list_agent_designation": property_data.get("CoListAgentDesignation"),
+            "construction_materials": property_data.get("ConstructionMaterials"),
+            "cooling": property_data.get("Cooling"),
+            "door_features": property_data.get("DoorFeatures"),
+            "exterior_features": property_data.get("ExteriorFeatures"),
+            "flooring": property_data.get("Flooring"),
+            "green_building_verification_type": property_data.get(
+                "GreenBuildingVerificationType"
+            ),
+            "heating": property_data.get("Heating"),
+            "interior_features": property_data.get("InteriorFeatures"),
+            "laundry_features": property_data.get("LaundryFeatures"),
+            "list_agent_designation": property_data.get("ListAgentDesignation"),
+            "listing_terms": property_data.get("ListingTerms"),
+            "lot_features": property_data.get("LotFeatures"),
+            "other_equipment": property_data.get("OtherEquipment"),
+            "parking_features": property_data.get("ParkingFeatures"),
+            "patio_and_porch_features": property_data.get("PatioAndPorchFeatures"),
+            "pool_features": property_data.get("PoolFeatures"),
+            "property_condition": property_data.get("PropertyCondition"),
+            "roof": property_data.get("Roof"),
+            "security_features": property_data.get("SecurityFeatures"),
+            "sewer": property_data.get("Sewer"),
+            "showing_contact_type": property_data.get("ShowingContactType"),
+            "utilities": property_data.get("Utilities"),
+            "vegetation": property_data.get("Vegetation"),
+            "view": property_data.get("View"),
+            "water_source": property_data.get("WaterSource"),
+            "window_features": property_data.get("WindowFeatures"),
+            "current_use": property_data.get("CurrentUse"),
+            "fencing": property_data.get("Fencing"),
+            "fireplace_features": property_data.get("FireplaceFeatures"),
+            "green_energy_generation": property_data.get("GreenEnergyGeneration"),
+            "body_type": property_data.get("BodyType"),
+            "building_features": property_data.get("BuildingFeatures"),
+            "business_type": property_data.get("BusinessType"),
+            "common_walls": property_data.get("CommonWalls"),
+            "community_features": property_data.get("CommunityFeatures"),
+            "electric": property_data.get("Electric"),
+            "foundation_details": property_data.get("FoundationDetails"),
+            "green_energy_efficient": property_data.get("GreenEnergyEfficient"),
+            "green_indoor_air_quality": property_data.get("GreenIndoorAirQuality"),
+            "green_location": property_data.get("GreenLocation"),
+            "green_sustainability": property_data.get("GreenSustainability"),
+            "green_water_conservation": property_data.get("GreenWaterConservation"),
+            "levels": property_data.get("Levels"),
+            "other_structures": property_data.get("OtherStructures"),
+            "possible_use": property_data.get("PossibleUse"),
+            "rent_includes": property_data.get("RentIncludes"),
+            "road_frontage_type": property_data.get("RoadFrontageType"),
+            "road_surface_type": property_data.get("RoadSurfaceType"),
+            "room_type": property_data.get("RoomType"),
+            "skirt": property_data.get("Skirt"),
+            "spa_features": property_data.get("SpaFeatures"),
+            "special_listing_conditions": property_data.get("SpecialListingConditions"),
+            "structure_type": property_data.get("StructureType"),
+            "unit_type_type": property_data.get("UnitTypeType"),
+            "waterfront_features": property_data.get("WaterfrontFeatures"),
+            "geo_location": property_data.get("GeoLocation"),
+            "basement_finished": property_data.get("BasementFinished"),
+            "const_status": property_data.get("ConstStatus"),
+            "power_production_solar_year_install": property_data.get(
+                "PowerProductionSolarYearInstall"
+            ),
+            "solar_finance_company": property_data.get("SolarFinanceCompany"),
+            "solar_leasing_company": property_data.get("SolarLeasingCompany"),
+            "solar_ownership": property_data.get("SolarOwnership"),
+            "power_production_type": property_data.get("PowerProductionType"),
+            "level_data": property_data.get("LevelData"),
+            "above_grade_finished_area": property_data.get("AboveGradeFinishedArea"),
+            "buyer_financing": property_data.get("BuyerFinancing"),
+            "master_bedroom_level": property_data.get("MasterBedroomLevel"),
+            "irrigation_water_rights_acres": property_data.get("IrrigationWaterRightsAcres"),
+            "cancellation_date": property_data.get("CancellationDate"),
+            "image_status": property_data.get("ImageStatus"),
+            "co_buyer_agent_key_numeric": property_data.get("CoBuyerAgentKeyNumeric"),
+            "co_buyer_agent_fax": property_data.get("CoBuyerAgentFax"),
+            "co_buyer_agent_key": property_data.get("CoBuyerAgentKey"),
+            "co_buyer_agent_middle_name": property_data.get("CoBuyerAgentMiddleName"),
+            "co_buyer_agent_mls_id": property_data.get("CoBuyerAgentMlsId"),
+            "co_buyer_agent_preferred_phone": property_data.get("CoBuyerAgentPreferredPhone"),
+            "co_buyer_agent_url": property_data.get("CoBuyerAgentURL"),
+            "co_buyer_agent_aor": property_data.get("CoBuyerAgentAOR"),
+            "co_buyer_agent_designation": property_data.get("CoBuyerAgentDesignation"),
+            "co_buyer_office_key_numeric": property_data.get("CoBuyerOfficeKeyNumeric"),
+            "co_buyer_office_fax": property_data.get("CoBuyerOfficeFax"),
+            "co_buyer_office_key": property_data.get("CoBuyerOfficeKey"),
+            "co_buyer_office_phone": property_data.get("CoBuyerOfficePhone"),
+            "co_buyer_office_url": property_data.get("CoBuyerOfficeURL"),
+            "idx_contact_information": property_data.get("IdxContactInformation"),
+            "vow_contact_information": property_data.get("VowContactInformation"),
+            "short_term_rental_yn": property_data.get("ShortTermRentalYN"),
+            "adu_yn": property_data.get("AduYN"),
         },
     )
     return property_obj, created
@@ -536,64 +581,62 @@ def sync_properties(
     )
 
     try:
-        wfrmls_api = get_mls_api()
+        client = get_mls_client()
         records_processed = 0
         records_created = 0
         records_updated = 0
 
-        # Build date range for the year
-        closed_after = f"{year}-01-01"
-        closed_before = f"{year}-12-31"
-
-        logger.info(f"Fetching properties for {year}...")
-        responses = wfrmls_api.get_properties(
-            closed_after=closed_after,
-            closed_before=closed_before,
+        # Build filter for closed properties in the year
+        filter_query = (
+            f"StandardStatus eq 'Closed' and "
+            f"CloseDate ge {year}-01-01 and CloseDate le {year}-12-31"
         )
 
-        # Collect all MLS IDs first
-        mls_ids: list[str] = []
-        for response in responses:
-            mls_id = response().data.get("ListingKeyNumeric")
-            if mls_id:
-                mls_ids.append(mls_id)
-            records_processed += 1
-            if records_processed % 1000 == 0:
-                logger.info(f"Collected {records_processed} property IDs...")
+        logger.info(f"Fetching closed properties for {year}...")
 
-        logger.info(f"Collected {len(mls_ids)} property IDs, fetching details...")
+        # Use the paginated method to get all closed properties
+        response = client.property.get_all_properties_paginated(
+            filter_query=filter_query,
+            page_size=200,
+        )
+        properties_data = response.get("value", [])
 
-        # Process each property
-        for idx, mls_id in enumerate(mls_ids):
-            try:
-                property_data: PropertyData = wfrmls_api.get_property(mls_id=mls_id)
+        logger.info(f"Found {len(properties_data)} closed properties for {year}")
 
-                # Track the latest modification timestamp
-                if property_data.ModificationTimestamp:
-                    mod_ts = property_data.ModificationTimestamp
-                    if isinstance(mod_ts, str):
-                        mod_ts = datetime.fromisoformat(mod_ts.replace("Z", "+00:00"))
-                    if sync_log.last_modification_timestamp is None:
-                        sync_log.last_modification_timestamp = mod_ts
-                    elif mod_ts > sync_log.last_modification_timestamp:
-                        sync_log.last_modification_timestamp = mod_ts
+        for property_data in properties_data:
+                try:
+                    records_processed += 1
 
-                with transaction.atomic():
-                    _, created = process_single_property(property_data)
+                    # Track the latest modification timestamp
+                    mod_timestamp = property_data.get("ModificationTimestamp")
+                    if mod_timestamp:
+                        if isinstance(mod_timestamp, str):
+                            mod_ts = datetime.fromisoformat(
+                                mod_timestamp.replace("Z", "+00:00")
+                            )
+                        else:
+                            mod_ts = mod_timestamp
+                        if sync_log.last_modification_timestamp is None:
+                            sync_log.last_modification_timestamp = mod_ts
+                        elif mod_ts > sync_log.last_modification_timestamp:
+                            sync_log.last_modification_timestamp = mod_ts
 
-                if created:
-                    records_created += 1
-                else:
-                    records_updated += 1
+                    with transaction.atomic():
+                        _, created = process_single_property(property_data)
 
-                if (idx + 1) % 100 == 0:
-                    logger.info(f"Processed {idx + 1}/{len(mls_ids)} properties...")
+                    if created:
+                        records_created += 1
+                    else:
+                        records_updated += 1
 
-            except Exception as e:
-                logger.error(f"Error processing property {mls_id}: {e}")
-                continue
+                    if records_processed % 100 == 0:
+                        logger.info(f"Processed {records_processed} properties...")
 
-        sync_log.records_processed = len(mls_ids)
+                except Exception as e:
+                    logger.error(f"Error processing property: {e}")
+                    continue
+
+        sync_log.records_processed = records_processed
         sync_log.records_created = records_created
         sync_log.records_updated = records_updated
         sync_log.status = SyncLog.SyncStatus.COMPLETED
@@ -601,7 +644,7 @@ def sync_properties(
         sync_log.save()
 
         logger.info(
-            f"Property sync completed: {len(mls_ids)} processed, "
+            f"Property sync completed: {records_processed} processed, "
             f"{records_created} created, {records_updated} updated"
         )
 
@@ -719,7 +762,7 @@ def calculate_agent_stats(year: Optional[int] = None) -> int:
     return stats_updated
 
 
-def run_full_sync(year: Optional[int] = None) -> dict[str, SyncLog]:
+def run_full_sync(year: Optional[int] = None) -> dict[str, Any]:
     """Run a full synchronization of all MLS data.
 
     Args:
@@ -728,7 +771,7 @@ def run_full_sync(year: Optional[int] = None) -> dict[str, SyncLog]:
     Returns:
         Dictionary with SyncLog instances for each sync type.
     """
-    results = {}
+    results: dict[str, Any] = {}
 
     # Sync members
     logger.info("Starting member sync...")
@@ -740,7 +783,7 @@ def run_full_sync(year: Optional[int] = None) -> dict[str, SyncLog]:
 
     # Calculate stats
     logger.info("Calculating agent stats...")
-    calculate_agent_stats(year=year)
+    results["stats_updated"] = calculate_agent_stats(year=year)
 
     return results
 
