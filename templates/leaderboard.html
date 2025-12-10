@@ -103,7 +103,7 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover table-borderless card-table mb-0">
                 <thead>
                     <tr>
                         <th style="width: 80px;">Rank</th>
@@ -121,7 +121,7 @@
                     <tr>
                         <td>
                             <span class="rank-badge {% if stat.rank_in_aor == 1 %}rank-1{% elif stat.rank_in_aor == 2 %}rank-2{% elif stat.rank_in_aor == 3 %}rank-3{% else %}rank-default{% endif %}">
-                                {{ stat.rank_in_aor|default:stat.rank_overall }}
+                                {{ stat.rank_in_aor|default:"-" }}
                             </span>
                         </td>
                         <td>

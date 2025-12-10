@@ -433,6 +433,22 @@ a:active,
   --bs-table-hover-bg: rgba(var(--tpg-nero-rgb), 0.1);
 }
 
+.card-table tbody td:first-child,
+.card-table thead th:first-child {
+  padding-left: 1.5rem !important;
+}
+
+table.card-table {
+  margin-top: 0 !important;
+}
+
+table.card-table thead>tr>th {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 .table thead th {
   font-size: 10px;
   text-transform: uppercase;
@@ -441,19 +457,31 @@ a:active,
   color: var(--mid-900);
   border-bottom: 1px solid var(--bs-border-color-translucent);
   padding: 1rem 0.75rem;
+  white-space: nowrap;
 }
 
 .table td {
   padding: 1rem 0.75rem;
-  vertical-align: middle;
+  vertical-align: middle !important;
   border-bottom: 1px solid var(--bs-border-color-translucent);
+}
+
+.table tr.selected,
+.table .selected {
+  background-color: var(--tpg-700) !important;
+}
+
+[data-bs-theme=dark] table.card-table thead>tr>th {
+  background: var(--dark-800) !important;
 }
 
 [data-bs-theme=dark] table thead>tr>th {
   background: var(--dark-800) !important;
 }
 
-[data-bs-theme=dark] table td {
+[data-bs-theme=dark] table tbody tr>.dtfc-fixed-left,
+[data-bs-theme=dark] table tbody tr>.dtfc-fixed-right,
+[data-bs-theme=dark] table td:not(.bg-transparent) {
   background: var(--dark-600) !important;
 }
 

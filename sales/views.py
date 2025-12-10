@@ -84,16 +84,27 @@ class LeaderboardView(ListView):
     def get_queryset(self) -> QuerySet[AgentStats]:
         """Get filtered and ordered queryset.
 
-        Returns:
-            Filtered AgentStats queryset ordered by rank.
-        """
-        queryset = AgentStats.objects.select_related("member").order_by(
-            "rank_in_aor", "-total_volume"
-        )
+        Orders by AOR then rank_in_aor when showing all AORs,
+        or just by rank_in_aor when filtered to a specific AOR.
 
-        # Apply filters
+        Returns:
+            Filtered AgentStats queryset ordered by rank within AOR.
+        """
+        queryset = AgentStats.objects.select_related("member")
+
+        # Apply filters first
         self.filterset = AgentStatsFilter(self.request.GET, queryset=queryset)
-        return self.filterset.qs
+        filtered_qs = self.filterset.qs
+
+        # Order by AOR first if no specific AOR filter is applied,
+        # then by rank within AOR
+        aor_filter = self.request.GET.get("aor")
+        if aor_filter:
+            # When filtered to specific AOR, just order by rank
+            return filtered_qs.order_by("rank_in_aor", "-total_volume")
+        else:
+            # When showing all AORs, group by AOR then order by rank
+            return filtered_qs.order_by("aor", "rank_in_aor", "-total_volume")
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Get context data for the leaderboard.
